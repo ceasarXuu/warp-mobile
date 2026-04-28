@@ -164,6 +164,41 @@ Result:
 - Keep mobile launcher artwork sourced from the desktop stable channel icon unless product explicitly chooses a separate mobile mark.
 - Android package identity remains unchanged; only launcher label and icon resources changed.
 
+## 2026-04-29: WebView IME Keyboard Exclusivity
+
+### Change
+
+- Split system IME ownership into terminal-owned and WebView-owned modes.
+- When Android reports IME visibility while the native keyboard is still in built-in mode, the shell now auto-switches to `SystemIme` with `source=webview_ime`.
+- WebView-owned system IME mode does not focus the hidden native text field, so login form text goes into the focused WebView input instead of the terminal bridge.
+- Manual `System` button mode still uses the hidden native text field for terminal input.
+
+### Validation
+
+```powershell
+cd D:\warp-mobile\apps\mobile_android
+.\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug
+cd D:\warp-mobile
+adb install -r -t -g apps\mobile_android\app\build\outputs\apk\debug\app-debug.apk
+adb logcat -c
+adb shell am force-stop dev.warp.mobile.debug
+adb shell am start -n dev.warp.mobile.debug/dev.warp.mobile.MainActivity
+adb shell input tap 1050 1960
+adb logcat -d -s WarpMobile
+```
+
+Result:
+
+- `.\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug`: passed.
+- Real device reinstall with the rebuilt APK succeeded.
+- Manual `System` mode still logged `mobile_keyboard_mode_changed` with `source=native_toggle`.
+- Keyboard layout measurement still reported `gap_px=0`.
+
+### Operational Notes
+
+- Do not let the hidden native IME field own focus when the system keyboard was opened by a WebView login/input field. That breaks typing into OAuth forms.
+- WebView IME visibility is observed from Android window insets, so this protects provider login screens without requiring provider-specific DOM hooks.
+
 ## 2026-04-29: Mobile Design Token Exporter
 
 ### Change

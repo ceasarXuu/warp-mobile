@@ -14,7 +14,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -40,6 +43,11 @@ private const val AnchorSwitchThresholdFactor = 0.18f
 enum class TerminalKeyboardMode {
     Builtin,
     SystemIme,
+}
+
+private enum class SystemImeOwner {
+    Terminal,
+    WebView,
 }
 
 enum class KeyboardBandAnchor(val label: String) {
@@ -86,9 +94,27 @@ fun TerminalKeyboardBar(
     onAction: (TerminalAction) -> Unit,
 ) {
     var mode by remember { mutableStateOf(TerminalKeyboardMode.Builtin) }
+    var systemImeOwner by remember { mutableStateOf(SystemImeOwner.Terminal) }
     var modifierState by remember { mutableStateOf(TerminalModifierState()) }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val density = LocalDensity.current
+    val imeBottomPx = WindowInsets.ime.getBottom(density)
+
+    LaunchedEffect(imeBottomPx, mode) {
+        if (imeBottomPx > 0 && mode == TerminalKeyboardMode.Builtin) {
+            systemImeOwner = SystemImeOwner.WebView
+            mode = TerminalKeyboardMode.SystemIme
+            logger.event(
+                "mobile_keyboard_mode_changed",
+                mapOf(
+                    "keyboard_mode" to TerminalKeyboardMode.SystemIme.name.lowercase(),
+                    "session_id_hash" to sessionIdHash,
+                    "source" to "webview_ime",
+                ),
+            )
+        }
+    }
 
     fun setMode(nextMode: TerminalKeyboardMode) {
         if (mode == nextMode) return
@@ -97,11 +123,16 @@ fun TerminalKeyboardBar(
             focusManager.clearFocus(force = true)
             keyboardController?.hide()
         } else {
+            systemImeOwner = SystemImeOwner.Terminal
             onSystemKeyboardOpened("system_keyboard_switch")
         }
         logger.event(
             "mobile_keyboard_mode_changed",
-            mapOf("keyboard_mode" to nextMode.name.lowercase(), "session_id_hash" to sessionIdHash),
+            mapOf(
+                "keyboard_mode" to nextMode.name.lowercase(),
+                "session_id_hash" to sessionIdHash,
+                "source" to "native_toggle",
+            ),
         )
     }
 
@@ -154,6 +185,7 @@ fun TerminalKeyboardBar(
         TerminalKeyboardMode.SystemIme -> TerminalSystemKeyboardPanel(
             tokens = tokens,
             enabled = enabled,
+            captureInput = systemImeOwner == SystemImeOwner.Terminal,
             modifier = modifier,
             onSystemKeyboardOpened = onSystemKeyboardOpened,
             onSwitchToBuiltinKeyboard = { setMode(TerminalKeyboardMode.Builtin) },

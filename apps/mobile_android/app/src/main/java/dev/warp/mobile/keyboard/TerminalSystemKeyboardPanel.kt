@@ -30,6 +30,7 @@ import dev.warp.mobile.design.WarpMobileTokens
 internal fun TerminalSystemKeyboardPanel(
     tokens: WarpMobileTokens,
     enabled: Boolean,
+    captureInput: Boolean,
     modifier: Modifier = Modifier,
     onSystemKeyboardOpened: (String) -> Unit,
     onSwitchToBuiltinKeyboard: () -> Unit,
@@ -40,13 +41,18 @@ internal fun TerminalSystemKeyboardPanel(
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(captureInput) {
+        if (!captureInput) return@LaunchedEffect
         focusRequester.requestFocus()
         keyboardController?.show()
         onSystemKeyboardOpened("system_keyboard_focused")
     }
     DisposableEffect(Unit) {
-        onDispose { keyboardController?.hide() }
+        onDispose {
+            if (captureInput) {
+                keyboardController?.hide()
+            }
+        }
     }
 
     Column(
@@ -65,30 +71,32 @@ internal fun TerminalSystemKeyboardPanel(
             modifier = Modifier.fillMaxWidth(),
             onClick = onSwitchToBuiltinKeyboard,
         )
-        BasicTextField(
-            value = inputValue,
-            onValueChange = { next ->
-                if (next.isNotEmpty()) {
-                    next.forEach { char ->
-                        if (char == '\n') {
-                            onAction(TerminalAction.enter())
-                        } else {
-                            onPrintable(char.toString(), "system_ime_text")
+        if (captureInput) {
+            BasicTextField(
+                value = inputValue,
+                onValueChange = { next ->
+                    if (next.isNotEmpty()) {
+                        next.forEach { char ->
+                            if (char == '\n') {
+                                onAction(TerminalAction.enter())
+                            } else {
+                                onPrintable(char.toString(), "system_ime_text")
+                            }
                         }
+                        inputValue = ""
+                    } else {
+                        inputValue = next
                     }
-                    inputValue = ""
-                } else {
-                    inputValue = next
-                }
-            },
-            enabled = enabled,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.None),
-            cursorBrush = SolidColor(Color.Transparent),
-            textStyle = TextStyle(color = Color.Transparent),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .focusRequester(focusRequester),
-        )
+                },
+                enabled = enabled,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.None),
+                cursorBrush = SolidColor(Color.Transparent),
+                textStyle = TextStyle(color = Color.Transparent),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .focusRequester(focusRequester),
+            )
+        }
     }
 }
