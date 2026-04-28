@@ -78,3 +78,41 @@ Result:
 - The local Gradle wrapper helper downloads Gradle 8.10.2 under `%LOCALAPPDATA%\WarpMobile\gradle` and uses Android Studio's JBR when `JAVA_HOME` is unset.
 - The first device install can fail with `INSTALL_FAILED_USER_RESTRICTED` on this Xiaomi device until the phone is awake/unlocked and USB install approval is accepted. `adb install -r -t -g ...` succeeded after waking the device.
 - Local JVM unit tests that parse `org.json.JSONObject` need `testImplementation("org.json:json:20240303")`; otherwise Android's stubbed `org.json` can fail at runtime in host tests.
+
+## 2026-04-29: Real Warp Session Link Smoke
+
+### Change
+
+- Retested with a real `https://app.warp.dev/session/{uuid}` link instead of the fake debug page.
+- Added WebView cookie and third-party cookie acceptance so the embedded app can participate in normal web auth/session flows.
+- Expanded WebView navigation allowlist from only `app.warp.dev` to Warp-controlled `*.app.warp.dev` subdomains plus `accounts.google.com` for auth navigation.
+- Added host/path/main-frame fields to HTTP error logs so real-link failures identify the failing service without logging full URLs or tokens.
+- Set `MainActivity` to `singleTask` so repeated real App Link launches reuse the same shell instead of stacking stale debug and real-link activities.
+- Applied safe drawing insets to the native shell so the status bar no longer overlaps the session title on Android 15+ edge-to-edge devices.
+
+### Validation
+
+```powershell
+cd D:\warp-mobile\apps\mobile_android
+.\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug
+cd D:\warp-mobile
+adb install -r -t -g apps\mobile_android\app\build\outputs\apk\debug\app-debug.apk
+adb logcat -c
+adb shell am start -n dev.warp.mobile.debug/dev.warp.mobile.MainActivity -a android.intent.action.VIEW -d "https://app.warp.dev/session/{uuid}"
+adb logcat -d -s WarpMobile
+```
+
+Result:
+
+- Build and Android unit tests passed.
+- Real App Link parse and WebView main document load succeeded.
+- Actual remote session content did not become controllable yet. The loaded Warp web app returned:
+  - `401` from `app.warp.dev/auth/session`
+  - `401` from `sessions.app.warp.dev/sessions/{uuid}`
+- Before the auth-origin change, the same flow also attempted to navigate to `accounts.google.com` and was blocked by the stricter first allowlist.
+
+### Operational Notes
+
+- A real-link smoke must check both WebView rendering and `WarpMobile` logcat. A blank white WebView can still mean the main SPA loaded but downstream auth/session API calls returned 401.
+- Do not treat fake bridge ACK as proof that production `app.warp.dev/session/{uuid}` works. The production gate is a real session API response plus bridge/capability events from Warp web.
+- Do not commit full real session URLs in diagnostics; use `{uuid}` or the app's `session_id_hash`.

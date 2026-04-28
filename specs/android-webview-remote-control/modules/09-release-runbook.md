@@ -76,6 +76,19 @@ adb shell am start `
   -d "https://debug.warp.local/session/00000000-0000-0000-0000-000000000000"
 ```
 
+真实链接 smoke 使用用户提供或 staging 生成的真实 `https://app.warp.dev/session/{uuid}`：
+
+```powershell
+adb logcat -c
+adb shell am start `
+  -n dev.warp.mobile.debug/dev.warp.mobile.MainActivity `
+  -a android.intent.action.VIEW `
+  -d "https://app.warp.dev/session/{uuid}"
+adb logcat -d -s WarpMobile
+```
+
+不要把真实 UUID、token、cookie 或完整 URL 写入提交文档；提交文档只保留 `{uuid}` 或 `session_id_hash`。
+
 ## Logcat Filters
 
 ```powershell
@@ -112,6 +125,13 @@ adb logcat -d -s WarpMobile
 ```
 
 坐标基于当前测试设备 `1220x2712`。更换设备后先执行 `adb shell uiautomator dump /sdcard/warp-mobile-ui.xml` 检查按键 bounds，再更新临时 smoke 坐标；不要把坐标写死进自动化测试。
+
+真实链接 smoke 的额外判断：
+
+- `mobile_webview_load_started` 只能证明 SPA 主页面开始加载，不代表 session 可控。
+- 如果出现 `mobile_webview_http_error` 且 `path=/auth/session`、`path=/sessions/{uuid}`、`status=401`，当前失败点是 Warp web auth/session API，不是 native link parser。
+- 如果出现 `mobile_webview_external_url_blocked`，先判断该 host 是否属于必要的 Warp/auth origin；只添加明确 origin，不开放通配外链。
+- 只有看到生产 Web 侧 bridge ready/capability 事件后，才能继续测内置键盘真实输入。
 
 ## 发布前冒烟
 

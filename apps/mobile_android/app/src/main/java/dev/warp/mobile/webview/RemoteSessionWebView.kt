@@ -3,6 +3,7 @@ package dev.warp.mobile.webview
 import android.annotation.SuppressLint
 import android.content.Context
 import android.webkit.ConsoleMessage
+import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
@@ -18,6 +19,14 @@ import java.util.concurrent.atomic.AtomicInteger
 
 object RemoteSessionWebView {
     private val sequence = AtomicInteger()
+    private val allowedSessionHosts = setOf(
+        "app.warp.dev",
+        "debug.warp.local",
+        "localhost",
+        "127.0.0.1",
+    )
+    private val allowedWarpHostSuffixes = setOf(".app.warp.dev")
+    private val allowedAuthHosts = setOf("accounts.google.com")
 
     @SuppressLint("SetJavaScriptEnabled")
     fun create(
@@ -32,6 +41,9 @@ object RemoteSessionWebView {
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            settings.javaScriptCanOpenWindowsAutomatically = true
+            CookieManager.getInstance().setAcceptCookie(true)
+            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             addJavascriptInterface(WarpHostBridge(logger), "WarpAndroidHost")
             webChromeClient = loggingChromeClient(logger)
             webViewClient = guardedWebViewClient(logger)
@@ -77,7 +89,10 @@ object RemoteSessionWebView {
             override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
                 logger.event(
                     "mobile_webview_console",
-                    mapOf("level" to consoleMessage.messageLevel().name),
+                    mapOf(
+                        "level" to consoleMessage.messageLevel().name,
+                        "line" to consoleMessage.lineNumber().toString(),
+                    ),
                 )
                 return true
             }
@@ -88,9 +103,15 @@ object RemoteSessionWebView {
         return object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val host = request.url.host.orEmpty()
-                val allowed = host in setOf("app.warp.dev", "debug.warp.local", "localhost", "127.0.0.1")
+                val allowed = isAllowedHost(host)
                 if (!allowed) {
-                    logger.warn("mobile_webview_external_url_blocked", mapOf("host" to host))
+                    logger.warn(
+                        "mobile_webview_external_url_blocked",
+                        mapOf(
+                            "host" to host,
+                            "is_main_frame" to request.isForMainFrame.toString(),
+                        ),
+                    )
                 }
                 return !allowed
             }
@@ -102,7 +123,12 @@ object RemoteSessionWebView {
             ) {
                 logger.warn(
                     "mobile_webview_http_error",
-                    mapOf("status" to errorResponse.statusCode.toString()),
+                    mapOf(
+                        "host" to request.url.host.orEmpty(),
+                        "is_main_frame" to request.isForMainFrame.toString(),
+                        "path" to request.url.path.orEmpty().take(96),
+                        "status" to errorResponse.statusCode.toString(),
+                    ),
                 )
             }
 
@@ -111,6 +137,12 @@ object RemoteSessionWebView {
                 handler.cancel()
             }
         }
+    }
+
+    private fun isAllowedHost(host: String): Boolean {
+        return host in allowedSessionHosts ||
+            allowedWarpHostSuffixes.any { suffix -> host.endsWith(suffix) } ||
+            host in allowedAuthHosts
     }
 
     private fun fakeRemoteControlPage(): String {

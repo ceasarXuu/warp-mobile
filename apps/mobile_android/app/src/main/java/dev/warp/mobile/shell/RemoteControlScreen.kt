@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,6 +49,7 @@ private fun LoadingState(tokens: WarpMobileTokens) {
         modifier = Modifier
             .fillMaxSize()
             .background(tokens.background)
+            .safeDrawingPadding()
             .padding(16.dp),
     ) {
         Text("Loading Warp remote session", color = tokens.activeText)
@@ -65,6 +67,7 @@ private fun ErrorState(
         modifier = Modifier
             .fillMaxSize()
             .background(tokens.background)
+            .safeDrawingPadding()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -87,7 +90,8 @@ private fun ReadyState(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(tokens.background),
+            .background(tokens.background)
+            .safeDrawingPadding(),
     ) {
         Text(
             text = "Remote session ${state.request.sessionIdHash.take(8)}",
