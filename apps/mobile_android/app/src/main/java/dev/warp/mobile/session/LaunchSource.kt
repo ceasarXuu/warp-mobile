@@ -5,4 +5,6 @@ enum class LaunchSource {
     NEW_INTENT,
     RETRY,
     DEBUG_DEMO,
+    USER_CREATED,
+    RESTORE,
 }

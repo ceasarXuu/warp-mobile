@@ -1,5 +1,34 @@
 # Android WebView Remote Control Project Log
 
+## 2026-04-29: Persistent Remote Tabs
+
+### Change
+
+- Replaced the no-link debug fallback with a first-run welcome surface.
+- Added native tab creation through a required URL prompt.
+- Added a token-styled tab strip so users can create and switch between multiple remote session tabs.
+- Persisted open tabs and the selected tab with Android `SharedPreferences`.
+- Kept tabs on the shared WebView cookie/storage profile so network login state is shared across tabs.
+- Added tab lifecycle logs for welcome, load/save, creation, selection, create failure, and restore drops.
+
+### Validation
+
+```powershell
+cd D:\warp-mobile\apps\mobile_android
+.\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug
+```
+
+Result:
+
+- `.\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug`: passed.
+- Added host unit coverage for tab snapshot JSON round-tripping and malformed entry filtering.
+
+### Operational Notes
+
+- When launching from a real App Link after prior tabs exist, load the persisted tab list before appending the new tab. Otherwise the new intent path can overwrite saved tabs with only the incoming link.
+- Persist URLs through the same parser used by App Links. Invalid restored tabs should be dropped with `mobile_tab_restore_dropped` instead of crashing or blocking the whole shell.
+- Use the shared Android WebView profile for tab auth continuity; do not introduce per-tab isolated WebView data stores unless the product explicitly asks for separate identities.
+
 ## 2026-04-29: Mobile Design Token Exporter
 
 ### Change

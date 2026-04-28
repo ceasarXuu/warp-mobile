@@ -1,0 +1,54 @@
+# Android Remote Tab Management
+
+## Product Contract
+
+The mobile shell starts on a welcome surface when there are no saved remote tabs and no incoming App Link. Tapping `New tab` opens a native link prompt. Every user-created tab must come from an explicit URL entry so the app never silently falls back to demo data.
+
+The shell persists the currently open tabs and selected tab locally. On the next launch without an App Link, it restores the same tab list and selects the last active tab. An incoming App Link creates a new tab and preserves existing saved tabs.
+
+## Native State Model
+
+- `RemoteScreenState.Welcome`: no saved tabs are available; the only primary action is creating a tab.
+- `RemoteScreenState.Ready`: owns a list of `RemoteTab` objects plus the selected tab id.
+- `RemoteTab`: stores a stable tab id, the parsed `SessionLaunchRequest`, and creation time.
+- `RemoteTabStore`: serializes tab metadata to Android `SharedPreferences`.
+
+Tab persistence stores the normalized `loadUrl`, not WebView DOM state. Auth and web session continuity are shared through Android WebView's process-wide cookie and storage profile, so tabs do not require separate login.
+
+## UI Behavior
+
+- The top native strip shows one compact tab pill per open remote tab.
+- The selected pill uses the Warp token accent/outline treatment.
+- The `+` control is always available in the tab strip and opens the native URL dialog.
+- Invalid links keep the dialog open and show the parser reason without changing the current tab.
+
+## Logging
+
+The feature emits structured `WarpMobile` events:
+
+- `mobile_tab_welcome_shown`
+- `mobile_tab_store_loaded`
+- `mobile_tab_store_saved`
+- `mobile_tab_created`
+- `mobile_tab_selected`
+- `mobile_tab_create_failed`
+- `mobile_tab_restore_dropped`
+
+These logs are required for device smoke tests because WebView visual state alone cannot prove tab restore or shared auth behavior.
+
+## Validation
+
+Required checks for tab changes:
+
+```powershell
+cd D:\warp-mobile\apps\mobile_android
+.\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug
+```
+
+Real-device smoke should verify:
+
+- fresh launch shows the welcome surface,
+- `New tab` opens a URL prompt,
+- a real `https://app.warp.dev/session/{uuid}` link creates a tab,
+- launching the app again restores the tab strip and selected tab,
+- creating another tab does not require another login after the first tab has authenticated.
