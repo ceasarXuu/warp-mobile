@@ -199,6 +199,27 @@ Result:
 - Do not let the hidden native IME field own focus when the system keyboard was opened by a WebView login/input field. That breaks typing into OAuth forms.
 - WebView IME visibility is observed from Android window insets, so this protects provider login screens without requiring provider-specific DOM hooks.
 
+## 2026-04-29: Auth Broker Direction
+
+### Change
+
+- Documented that embedded Google/GitHub OAuth is a temporary compatibility path, not the target architecture.
+- Added `AUTH_BROKER.md` with the native auth broker design:
+  - Custom Tabs or provider SDK for login and registration.
+  - verified app link or private redirect scheme for return.
+  - backend-supported exchange into a WebView-ready Warp session.
+  - WebView used only after session bootstrap.
+- Updated tab management docs to stop treating WebView OAuth user-agent tweaks as a durable fix.
+
+### Validation
+
+- Documentation-only change.
+
+### Operational Notes
+
+- Google officially rejects embedded WebView OAuth; user-agent spoofing can reduce one error page but still worsens provider trust signals and captcha frequency.
+- The previous external-browser attempt hit 404 because browser cookies and WebView cookies were split. A durable Custom Tabs path requires a backend/web session transfer contract.
+
 ## 2026-04-29: Mobile Design Token Exporter
 
 ### Change

@@ -17,7 +17,9 @@ Tab persistence stores the normalized `loadUrl`, not WebView DOM state. Auth and
 
 The embedded browser profile is also expected to survive app restarts. `RemoteSessionWebView` enables DOM storage and Web SQL database storage for web auth flows, accepts first-party and third-party cookies, and flushes the cookie jar after page finishes plus Activity pause/destroy. Do not add per-tab or per-launch isolated WebView data directories unless the product explicitly needs separate identities.
 
-Google and GitHub login stay in the embedded browser so OAuth state cookies and final Warp session cookies remain in the same WebView profile. The navigation allowlist includes Warp app/session hosts plus OAuth support domains, WebView popup windows are captured back into the visible remote WebView, and the WebView user agent removes Android's `; wv` marker to avoid Google's embedded-user-agent rejection page.
+Google and GitHub login currently stay in the embedded browser only as a short-term compatibility path so OAuth state cookies and final Warp session cookies remain in the same WebView profile. This is not the long-term auth architecture: embedded OAuth increases provider risk scoring and can trigger `disallowed_useragent`, captcha, or account verification. The long-term path is a native auth broker that starts OAuth in Android Custom Tabs or provider SDKs, receives the redirect through a verified app link or private redirect scheme, and exchanges the result into a Warp web session that can be injected or resumed in the WebView without re-authenticating inside the WebView.
+
+Do not add further WebView user-agent spoofing or provider-specific captcha workarounds. Those are brittle and make the client look less trustworthy. Future implementation should move login/registration out of `RemoteSessionWebView` while keeping the remote-control surface in WebView after a valid Warp session exists.
 
 ## UI Behavior
 
@@ -64,6 +66,6 @@ Real-device smoke should verify:
 - launching the app again restores the tab strip and selected tab,
 - creating another tab does not require another login after the first tab has authenticated.
 - force-stopping and reopening the app after web login preserves the embedded browser session.
-- tapping Google login stays in the visible WebView and does not show Google's `disallowed_useragent` page.
-- tapping GitHub login stays in the visible WebView and does not get blocked by the embedded WebView host allowlist.
-- the `app.warp.dev` OAuth continuation opens back into the selected tab's WebView.
+- tapping Google login does not show Google's `disallowed_useragent` page, but captcha frequency is still expected to be higher than a system-browser auth flow.
+- tapping GitHub login does not get blocked by the embedded WebView host allowlist, but provider risk checks can still be stricter than a system-browser auth flow.
+- native auth broker follow-up tests should verify Custom Tabs/provider SDK login, redirect return, WebView session bootstrap, and app restart persistence.
