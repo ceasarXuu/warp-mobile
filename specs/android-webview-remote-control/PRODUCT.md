@@ -10,6 +10,7 @@
 2. 移动端保留 Web 远控页面的现有会话能力，不引入新的会话协议分叉。
 3. Android 原生层提供终端键盘、链接接管、会话状态提示、错误恢复和诊断日志。
 4. 内置键盘复用 Astropath 的核心设计：系统输入法和内置键盘双模式、三段键盘布局、修饰键状态机、长按重复、反馈和更多按键面板。
+5. Android 和未来 iOS native 组件视觉必须贴合 Warp web/desktop，并通过共享 token 和组件映射保持一致。
 
 ## 非目标
 
@@ -56,6 +57,14 @@
 - Ctrl、Alt、Shift 支持 inactive、one-shot、locked 三态。
 - Backspace、Delete、方向键等可长按重复。
 - 所有按键必须通过统一动作模型发送，不能在多个入口里各自拼接协议。
+- 键盘交互复用 Astropath，视觉必须 Warp 化：颜色、圆角、边框、字体层级、禁用态、pressed 态从 Warp token 映射而来。
+
+### 跨端视觉一致性
+
+- Android 和 iOS 不各自设计一套移动 UI。
+- 新 native 组件必须先映射到 Warp web/desktop 已有组件语义，如 Primary、Secondary、Naked、Dialog、Tooltip、KeyboardShortcut、InlineBanner。
+- 如果没有可映射组件，必须先扩展 Mobile Design System 文档，再实现平台代码。
+- 移动端可以适配平台安全区、触觉反馈、系统输入法和返回手势，但不能改变 Warp 的视觉语言。
 
 ### 权限和安全
 
@@ -73,3 +82,4 @@
 5. 断线、权限不足、viewer-only、WebView 加载失败都有明确 UI 状态和日志。
 6. 冒烟测试覆盖链接打开、页面加载、键盘输入、权限禁用、后台恢复。
 7. 关键日志可以按 session id 哈希、事件序列号和 bridge 消息 id 串起端到端路径。
+8. Android/iOS native 组件通过同一套 token fixture 和 golden screenshot 验证，视觉状态不分叉。

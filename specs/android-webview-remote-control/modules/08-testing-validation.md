@@ -50,6 +50,23 @@
 - Backspace 发送 Backspace action。
 - Reader state 禁用 action buttons。
 - More sheet 发送 Delete 和 PageUp。
+- 组件使用 `WarpMobileTheme`，不出现硬编码 hex color。
+- Primary、Secondary、Naked、Disabled、Danger 状态和 token fixture 匹配。
+
+### Design Parity Tests
+
+目标：
+
+- Android Compose component catalog。
+- 未来 iOS SwiftUI/UIKit component catalog。
+- Web/Desktop token fixture。
+
+必测场景：
+
+- 同一 token fixture 下，Android/iOS 的 button、dialog、tooltip、keyboard key、inline banner 视觉状态一致。
+- dark/light/custom theme 下 token 名称不缺失。
+- 字体放大、横屏、窄屏下文本不溢出。
+- native 组件不得使用未登记 token 或 feature-specific 颜色。
 
 ### Android Instrumentation Tests
 
@@ -119,6 +136,7 @@ adb logcat -s WarpMobileRemote WarpBridge WarpKeyboard WebView
 - 切换系统输入法后焦点返回终端。
 - 后台恢复后 bridge 状态正确。
 - 日志没有完整 URL、token、cookie、用户输入明文。
+- native 组件截图和 Warp web/desktop 组件语义一致，没有平台各自新增的视觉变体。
 
 ## 失败定位路径
 
@@ -156,3 +174,4 @@ adb logcat -s WarpMobileRemote WarpBridge WarpKeyboard WebView
 - 每个模块至少有 unit 或 instrumentation 覆盖入口。
 - 真实设备冒烟步骤可以由新成员按文档执行。
 - 测试失败能定位到具体模块，而不是只看到“移动端不可用”。
+- 视觉回归能定位到 token、组件映射或平台实现，不靠人工感觉判断。

@@ -9,7 +9,7 @@
 
 ## 模块文档
 
-以下 9 个模块是后续实现和验收的 canonical 文档入口：
+以下 10 个模块是后续实现和验收的 canonical 文档入口：
 
 - [modules/01-android-shell.md](modules/01-android-shell.md): Android 原生壳、Activity、导航、生命周期、错误恢复。
 - [modules/02-webview-container.md](modules/02-webview-container.md): WebView 容器、安全配置、页面加载策略、测试假页。
@@ -20,6 +20,7 @@
 - [modules/07-observability.md](modules/07-observability.md): 日志、指标、诊断包和隐私脱敏。
 - [modules/08-testing-validation.md](modules/08-testing-validation.md): 单测、Instrumentation、Web/WASM、真实设备冒烟。
 - [modules/09-release-runbook.md](modules/09-release-runbook.md): 构建、安装、启动、logcat、调试和发布前操作手册。
+- [modules/10-mobile-design-system.md](modules/10-mobile-design-system.md): Android/iOS native 视觉一致性、Warp token 复用、组件映射和防分叉规则。
 
 ## 总体切分
 
@@ -37,6 +38,8 @@ flowchart LR
     D --> I
     G --> I
     I --> J["Testing and Release Runbook"]
+    K["Mobile Design System"] --> B
+    K --> F
 ```
 
 ## 开发顺序
@@ -46,3 +49,4 @@ flowchart LR
 3. 内置键盘以 Astropath 的交互模型为准，先做输入正确性，再做细节体验。
 4. 会话权限、日志、测试脚手架贯穿每个阶段，不作为最后补丁。
 5. Release runbook 随真实命令、日志 tag、包名和设备验证流程持续更新。
+6. Android/iOS native 视觉只能从 Warp token 和组件映射派生，不能各端重新设计。

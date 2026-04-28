@@ -50,6 +50,12 @@ apps/mobile_android/
           MobileEventLogger.kt
           Redaction.kt
           DiagnosticsExporter.kt
+        design/
+          WarpMobileTokens.kt
+          WarpMobileTheme.kt
+          WarpButton.kt
+          WarpStatusBanner.kt
+          WarpKeyboardKey.kt
 ```
 
 具体目录可以随现有 Android scaffold 调整，但职责边界不应漂移。
@@ -95,6 +101,7 @@ RemoteControlScreen
 - 系统输入法出现时，使用 Android window inset，不硬编码高度。
 - 横屏下限制键盘高度，优先保留终端可视行数。
 - 状态栏和导航栏可 edge-to-edge，但交互元素必须留安全边距。
+- Shell、错误页、状态 overlay 和键盘容器只能使用 `WarpMobileTheme` token，不硬编码颜色、圆角或字体。
 
 ## Back 行为
 
@@ -139,3 +146,4 @@ RemoteControlScreen
 - 生命周期变化不丢 session request。
 - 错误恢复路径可执行且有日志。
 - Shell 代码不包含终端协议或 shared-session 协议实现。
+- Shell 视觉组件能映射到 Mobile Design System 中的 Warp 组件语义。

@@ -12,10 +12,12 @@
 ## 架构原则
 
 1. Android 是远控 Web 的移动宿主，不是第二套远控协议客户端。
-2. Web/WASM 仍负责远控页面渲染、会话连接和终端主体交互。
-3. Android 原生层负责移动平台能力：链接接管、WebView 生命周期、安全外壳、内置键盘、原生日志入口。
-4. 键盘动作使用平台无关的 terminal action 模型，不让 Android 直接拼接 DOM KeyboardEvent。
-5. 会话权限由 Web/WASM 暴露给 Android，Android 只按状态启用或禁用输入。
+2. iOS 后续采用同样边界：native shell 承担平台能力，Web/WASM 远控核心共享。
+3. Web/WASM 仍负责远控页面渲染、会话连接和终端主体交互。
+4. Android/iOS 原生层负责移动平台能力：链接接管、WebView/WKWebView 生命周期、安全外壳、内置键盘、原生日志入口。
+5. 键盘动作使用平台无关的 terminal action 模型，不让 Android 或 iOS 直接拼接 DOM KeyboardEvent。
+6. 会话权限由 Web/WASM 暴露给 native shell，native shell 只按状态启用或禁用输入。
+7. Native 视觉从 Warp web/desktop 的 token 和组件语义派生，不允许 Android/iOS 各自重新定义视觉系统。
 
 ## 目标架构
 
@@ -28,6 +30,13 @@ flowchart TB
         A4["Builtin Keyboard"]
         A5["Keyboard State Machine"]
         A6["Native Logger"]
+    end
+
+    subgraph iOS["Future iOS Native App"]
+        I1["SwiftUI / UIKit Shell"]
+        I2["WKWebView Container"]
+        I3["Native Builtin Keyboard"]
+        I4["OSLog Logger"]
     end
 
     subgraph Web["Hosted Web Page"]
@@ -50,6 +59,7 @@ flowchart TB
     A6 <-.-> A1
     A6 <-.-> A3
     A6 <-.-> A4
+    I1 -. same contracts .-> W1
 ```
 
 ## 模块边界
@@ -89,6 +99,10 @@ flowchart TB
 ### Release Runbook
 
 职责是打包、安装、App Link 启动、logcat、诊断导出、发布前检查和操作经验沉淀。
+
+### Mobile Design System
+
+职责是把 Warp web/desktop 的主题 token、按钮语义、弹窗、tooltip、快捷键、inline banner、图标和字体层级映射到 Android Compose 与未来 iOS SwiftUI/UIKit，防止两端 native UI 分叉。
 
 ## Bridge 协议草案
 
@@ -208,6 +222,9 @@ Astropath 是 Flutter 实现，Warp Android 可以用 Kotlin/Compose 或现有 A
 ## 决策记录
 
 - 第一阶段采用 Android WebView 容器，不重写远控客户端。
+- 长期采用 Android/iOS native shell per platform，不用跨端框架隐藏 WebView、IME、link、日志和安全边界。
 - 第一阶段复用 Astropath 键盘行为设计，不直接迁移 Flutter 代码。
+- 键盘视觉不复用 Astropath 外观，必须映射 Warp token 和组件语义。
 - Keyboard action 是跨层协议边界，不能以 UI 文本或 DOM KeyboardEvent 作为长期接口。
 - 日志和测试作为每个模块的完成条件，不放到末尾补做。
+- Design tokens 是跨平台视觉源头。平台 native 实现只能消费 token 和组件规范，不能新建 feature-specific 视觉变体。

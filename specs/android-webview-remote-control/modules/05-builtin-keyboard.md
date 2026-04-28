@@ -23,6 +23,7 @@
 - 不复制 Flutter widget 代码。
 - 不复制 Astropath 的项目命名、主题或平台 channel。
 - 不把键盘耦合到 Astropath remote session controller。
+- 不复用 Astropath 视觉外观；按键颜色、圆角、边框、文字、禁用态和 pressed 态必须来自 Warp token。
 
 ## 键盘模式
 
@@ -53,6 +54,14 @@
 - 数字行。
 - QWERTY 字母区。
 - Shift、Ctrl、Alt、Space、Enter。
+
+视觉规则：
+
+- 普通字符键映射 Warp `Secondary` 按钮语义。
+- Esc、Tab、方向键、Delete、More 映射 `Naked` 或 icon button 语义，按密度选择。
+- Enter、主要确认动作映射 `Primary`，但不能大面积使用 accent。
+- Ctrl/Alt/Shift active 使用 accent outline 或 surface overlay，不另造新颜色。
+- Viewer-only、disconnected、auth-required 禁用态映射 `Disabled`，不只降低 opacity。
 
 ### Right Peek
 
@@ -193,6 +202,7 @@ Dispatcher 输出：
 - Modifier controller unit test：三态切换、one-shot 消费、locked 保留。
 - Action dispatcher unit test：Esc、Tab、Enter、Backspace、Delete、方向键、Ctrl+C、Ctrl+D、Ctrl+Z、Alt 前缀。
 - Layout snapshot 或 Storybook 等价预览：三锚点、横竖屏、字体缩放。
+- 视觉 golden：Android 和未来 iOS 使用同一 token fixture 渲染 keyboard key states，和 Warp design catalog 对齐。
 - Repeat controller test：延迟、间隔、取消。
 - Instrumentation：点击键盘按键后 fake bridge 收到正确 JSON。
 - 真实设备冒烟：shell 历史导航、Ctrl+C 中断、长按删除、切换系统输入法后返回。
