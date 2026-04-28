@@ -95,6 +95,40 @@ Result:
 - A blank screen after Google login can be caused by either host blocking or unhandled `window.open`. Check both `mobile_webview_external_url_blocked` and the popup logs.
 - Keep Google auth allowlisting limited to OAuth/login support domains. Do not broadly allow arbitrary non-auth third-party navigation.
 
+## 2026-04-29: System IME Cursor Scroll
+
+### Change
+
+- Added a WebView focus-scroll request when switching from the built-in keyboard to the Android system IME.
+- Repeated the request after the hidden native IME text field receives focus so Web content gets a second chance after IME layout starts resizing.
+- The injected browser script focuses and scrolls the active element, xterm helper textarea, contenteditable node, textarea, or input into the center of the visible WebView.
+- Added `mobile_webview_focus_scroll_requested` and `mobile_webview_focus_scroll_skipped` diagnostics.
+
+### Validation
+
+```powershell
+cd D:\warp-mobile\apps\mobile_android
+.\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug
+cd D:\warp-mobile
+adb install -r -t -g apps\mobile_android\app\build\outputs\apk\debug\app-debug.apk
+adb logcat -c
+adb shell am force-stop dev.warp.mobile.debug
+adb shell am start -n dev.warp.mobile.debug/dev.warp.mobile.MainActivity
+adb shell input tap 1050 1960
+adb logcat -d -s WarpMobile
+```
+
+Result:
+
+- `.\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug`: passed.
+- Real device switch to system IME logged `mobile_webview_focus_scroll_requested`.
+- Keyboard layout measurement still reported `gap_px=0`.
+
+### Operational Notes
+
+- System IME visibility changes and WebView resize are not atomic. Keep one immediate scroll request on mode switch and one follow-up request after native focus is acquired.
+- If a future Warp web terminal exposes a dedicated mobile bridge method for cursor reveal, prefer that over DOM selector probing.
+
 ## 2026-04-29: Mobile Design Token Exporter
 
 ### Change

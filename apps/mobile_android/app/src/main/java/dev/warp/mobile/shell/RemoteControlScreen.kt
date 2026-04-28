@@ -219,6 +219,9 @@ private fun ReadyState(
                     keyboardTop = next
                 }
             },
+            onSystemKeyboardOpened = { reason ->
+                RemoteSessionWebView.scrollFocusedInputIntoView(webView, logger, reason)
+            },
         ) { action -> RemoteSessionWebView.dispatchTerminalAction(webView, action, logger) }
     }
 }

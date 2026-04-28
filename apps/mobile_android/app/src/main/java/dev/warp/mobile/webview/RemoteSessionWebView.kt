@@ -95,6 +95,16 @@ object RemoteSessionWebView {
         )
     }
 
+    fun scrollFocusedInputIntoView(webView: WebView?, logger: MobileEventLogger, reason: String) {
+        if (webView == null) {
+            logger.warn("mobile_webview_focus_scroll_skipped", mapOf("reason" to "webview_not_ready"))
+            return
+        }
+        webView.requestFocus()
+        logger.event("mobile_webview_focus_scroll_requested", mapOf("reason" to reason))
+        webView.evaluateJavascript(focusScrollScript(), null)
+    }
+
     private fun WebView.loadRequest(request: SessionLaunchRequest, logger: MobileEventLogger) {
         logger.event("mobile_webview_load_started", mapOf("session_id_hash" to request.sessionIdHash))
         if (request.useFakePage) {
@@ -223,6 +233,39 @@ object RemoteSessionWebView {
             allowedWarpHostSuffixes.any { suffix -> host.endsWith(suffix) } ||
             host in allowedAuthHosts ||
             allowedAuthHostSuffixes.any { suffix -> host.endsWith(suffix) }
+    }
+
+    private fun focusScrollScript(): String {
+        return """
+            (function() {
+              const selectors = [
+                'textarea.xterm-helper-textarea',
+                '.xterm-helper-textarea',
+                '[contenteditable="true"]',
+                'textarea',
+                'input'
+              ];
+              const nodes = [];
+              if (document.activeElement) nodes.push(document.activeElement);
+              for (const selector of selectors) {
+                const node = document.querySelector(selector);
+                if (node) nodes.push(node);
+              }
+              for (const node of nodes) {
+                if (!node || node === document.body || node === document.documentElement) continue;
+                try {
+                  if (typeof node.focus === 'function') node.focus({preventScroll: false});
+                  if (typeof node.scrollIntoView === 'function') {
+                    node.scrollIntoView({block: 'center', inline: 'nearest', behavior: 'instant'});
+                    return true;
+                  }
+                } catch (_) {}
+              }
+              window.scrollBy(0, 1);
+              window.scrollBy(0, -1);
+              return false;
+            })();
+        """.trimIndent()
     }
 
     private fun fakeRemoteControlPage(): String {

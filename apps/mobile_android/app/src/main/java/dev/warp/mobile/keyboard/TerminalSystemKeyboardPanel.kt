@@ -31,6 +31,7 @@ internal fun TerminalSystemKeyboardPanel(
     tokens: WarpMobileTokens,
     enabled: Boolean,
     modifier: Modifier = Modifier,
+    onSystemKeyboardOpened: (String) -> Unit,
     onSwitchToBuiltinKeyboard: () -> Unit,
     onAction: (TerminalAction) -> Unit,
     onPrintable: (String, String) -> Unit,
@@ -42,6 +43,7 @@ internal fun TerminalSystemKeyboardPanel(
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
         keyboardController?.show()
+        onSystemKeyboardOpened("system_keyboard_focused")
     }
     DisposableEffect(Unit) {
         onDispose { keyboardController?.hide() }

@@ -82,6 +82,7 @@ fun TerminalKeyboardBar(
     sessionIdHash: String,
     logger: MobileEventLogger,
     modifier: Modifier = Modifier,
+    onSystemKeyboardOpened: (String) -> Unit = {},
     onAction: (TerminalAction) -> Unit,
 ) {
     var mode by remember { mutableStateOf(TerminalKeyboardMode.Builtin) }
@@ -95,6 +96,8 @@ fun TerminalKeyboardBar(
         if (nextMode == TerminalKeyboardMode.Builtin) {
             focusManager.clearFocus(force = true)
             keyboardController?.hide()
+        } else {
+            onSystemKeyboardOpened("system_keyboard_switch")
         }
         logger.event(
             "mobile_keyboard_mode_changed",
@@ -152,6 +155,7 @@ fun TerminalKeyboardBar(
             tokens = tokens,
             enabled = enabled,
             modifier = modifier,
+            onSystemKeyboardOpened = onSystemKeyboardOpened,
             onSwitchToBuiltinKeyboard = { setMode(TerminalKeyboardMode.Builtin) },
             onAction = { action -> dispatch(action, null) },
             onPrintable = { value, keyId -> dispatchPrintable(value, keyId, null) },
