@@ -17,6 +17,8 @@ Tab persistence stores the normalized `loadUrl`, not WebView DOM state. Auth and
 
 The embedded browser profile is also expected to survive app restarts. `RemoteSessionWebView` enables DOM storage and Web SQL database storage for web auth flows, accepts first-party and third-party cookies, and flushes the cookie jar after page finishes plus Activity pause/destroy. Do not add per-tab or per-launch isolated WebView data directories unless the product explicitly needs separate identities.
 
+Google login is allowed inside the embedded browser. The navigation allowlist includes Warp app/session hosts plus Google OAuth/login support domains, and WebView popup windows are captured back into the visible remote WebView so OAuth flows that use `window.open` do not land in an invisible blank WebView.
+
 ## UI Behavior
 
 - The top native strip shows one compact tab pill per open remote tab.
@@ -36,6 +38,9 @@ The feature emits structured `WarpMobile` events:
 - `mobile_tab_create_failed`
 - `mobile_tab_restore_dropped`
 - `mobile_webview_persistent_state_flushed`
+- `mobile_webview_popup_requested`
+- `mobile_webview_popup_url_accepted`
+- `mobile_webview_popup_url_blocked`
 
 These logs are required for device smoke tests because WebView visual state alone cannot prove tab restore or shared auth behavior.
 
@@ -56,3 +61,4 @@ Real-device smoke should verify:
 - launching the app again restores the tab strip and selected tab,
 - creating another tab does not require another login after the first tab has authenticated.
 - force-stopping and reopening the app after web login preserves the embedded browser session.
+- tapping Google login navigates to a visible Google sign-in page instead of a blank screen, and logcat does not show `mobile_webview_popup_url_blocked` for expected Google OAuth hosts.

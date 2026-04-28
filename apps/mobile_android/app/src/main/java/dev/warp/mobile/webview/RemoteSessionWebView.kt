@@ -2,6 +2,7 @@ package dev.warp.mobile.webview
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.os.Message
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
@@ -26,7 +27,18 @@ object RemoteSessionWebView {
         "127.0.0.1",
     )
     private val allowedWarpHostSuffixes = setOf(".app.warp.dev")
-    private val allowedAuthHosts = setOf("accounts.google.com")
+    private val allowedAuthHosts = setOf(
+        "accounts.google.com",
+        "accounts.youtube.com",
+        "apis.google.com",
+        "oauth2.googleapis.com",
+    )
+    private val allowedAuthHostSuffixes = setOf(
+        ".google.com",
+        ".gstatic.com",
+        ".googleusercontent.com",
+        ".googleapis.com",
+    )
 
     @SuppressLint("SetJavaScriptEnabled")
     fun create(
@@ -44,6 +56,7 @@ object RemoteSessionWebView {
             settings.allowContentAccess = false
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             settings.javaScriptCanOpenWindowsAutomatically = true
+            settings.setSupportMultipleWindows(true)
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             addJavascriptInterface(WarpHostBridge(logger), "WarpAndroidHost")
@@ -93,6 +106,33 @@ object RemoteSessionWebView {
 
     private fun loggingChromeClient(logger: MobileEventLogger): WebChromeClient {
         return object : WebChromeClient() {
+            override fun onCreateWindow(
+                view: WebView,
+                isDialog: Boolean,
+                isUserGesture: Boolean,
+                resultMsg: Message,
+            ): Boolean {
+                logger.event(
+                    "mobile_webview_popup_requested",
+                    mapOf("is_dialog" to isDialog.toString(), "is_user_gesture" to isUserGesture.toString()),
+                )
+                val popupView = WebView(view.context).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    @Suppress("DEPRECATION")
+                    settings.databaseEnabled = true
+                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                    settings.javaScriptCanOpenWindowsAutomatically = true
+                    settings.setSupportMultipleWindows(false)
+                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                    webViewClient = popupRedirectClient(view, logger)
+                }
+                val transport = resultMsg.obj as WebView.WebViewTransport
+                transport.webView = popupView
+                resultMsg.sendToTarget()
+                return true
+            }
+
             override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
                 logger.event(
                     "mobile_webview_console",
@@ -104,6 +144,34 @@ object RemoteSessionWebView {
                 return true
             }
         }
+    }
+
+    private fun popupRedirectClient(targetView: WebView, logger: MobileEventLogger): WebViewClient {
+        return object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                return redirectPopup(targetView, request.url.toString(), request.url.host.orEmpty(), logger)
+            }
+
+            override fun onPageFinished(view: WebView, url: String) {
+                val host = android.net.Uri.parse(url).host.orEmpty()
+                if (redirectPopup(targetView, url, host, logger)) {
+                    view.destroy()
+                }
+            }
+        }
+    }
+
+    private fun redirectPopup(targetView: WebView, url: String, host: String, logger: MobileEventLogger): Boolean {
+        if (host.isBlank() || url == "about:blank") {
+            return false
+        }
+        if (!isAllowedHost(host)) {
+            logger.warn("mobile_webview_popup_url_blocked", mapOf("host" to host))
+            return true
+        }
+        logger.event("mobile_webview_popup_url_accepted", mapOf("host" to host))
+        targetView.loadUrl(url)
+        return true
     }
 
     private fun guardedWebViewClient(logger: MobileEventLogger): WebViewClient {
@@ -153,7 +221,8 @@ object RemoteSessionWebView {
     private fun isAllowedHost(host: String): Boolean {
         return host in allowedSessionHosts ||
             allowedWarpHostSuffixes.any { suffix -> host.endsWith(suffix) } ||
-            host in allowedAuthHosts
+            host in allowedAuthHosts ||
+            allowedAuthHostSuffixes.any { suffix -> host.endsWith(suffix) }
     }
 
     private fun fakeRemoteControlPage(): String {
