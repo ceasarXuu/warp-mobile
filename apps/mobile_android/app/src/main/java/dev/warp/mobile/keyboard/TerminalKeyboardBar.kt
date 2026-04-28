@@ -151,12 +151,10 @@ fun TerminalKeyboardBar(
         TerminalKeyboardMode.SystemIme -> TerminalSystemKeyboardPanel(
             tokens = tokens,
             enabled = enabled,
-            modifierState = modifierState,
             modifier = modifier,
             onSwitchToBuiltinKeyboard = { setMode(TerminalKeyboardMode.Builtin) },
             onAction = { action -> dispatch(action, null) },
             onPrintable = { value, keyId -> dispatchPrintable(value, keyId, null) },
-            onModifier = ::toggleModifier,
         )
     }
 }

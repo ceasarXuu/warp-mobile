@@ -207,3 +207,36 @@ Result:
 
 - A zero gap between browser bottom and keyboard top is the runtime invariant for "squeeze instead of cover".
 - Capture screenshots together with `mobile_shell_keyboard_layout_measured`; visual inspection alone can miss a WebView that is still drawing behind a Compose sibling.
+
+## 2026-04-29: Persistent Keyboard Mode Toggle
+
+### Change
+
+- Kept the keyboard mode switch available in both modes:
+  - builtin mode keeps the `System` button in the keyboard header.
+  - system IME mode keeps a single full-width `Built-in keyboard` button above the Android system keyboard.
+- Removed the visible shortcut rows and visible input buffer from system IME mode.
+- Kept an invisible focused text field in system IME mode so Android can show the system keyboard and still route committed text to the terminal bridge.
+
+### Validation
+
+```powershell
+cd D:\warp-mobile\apps\mobile_android
+.\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug
+cd D:\warp-mobile
+adb install -r -t -g apps\mobile_android\app\build\outputs\apk\debug\app-debug.apk
+adb logcat -c
+adb shell am start -n dev.warp.mobile.debug/dev.warp.mobile.MainActivity -a android.intent.action.VIEW -d "https://app.warp.dev/session/{uuid}"
+adb shell input tap 1050 1960
+adb shell input tap 600 1520
+adb logcat -d -s WarpMobile
+```
+
+Result:
+
+- Build and Android unit tests passed.
+- Real device system IME mode displayed only the persistent `Built-in keyboard` switch above the Android keyboard; no native shortcut row or visible input buffer remained.
+- Real device mode switch logged `keyboard_mode=systemime`, then `keyboard_mode=builtin`.
+- Stable layout measurement stayed squeezed:
+  - system IME: `browser_bottom_px=1450`, `keyboard_top_px=1450`, `gap_px=0`
+  - builtin: `browser_bottom_px=1896`, `keyboard_top_px=1896`, `gap_px=0`

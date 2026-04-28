@@ -135,6 +135,7 @@ adb logcat -s WarpMobileRemote WarpBridge WarpKeyboard WebView
 - 长按重复可取消。
 - 切换系统输入法后焦点返回终端。
 - 内置键盘和系统输入法弹出后，`mobile_shell_keyboard_layout_measured.gap_px` 稳定为 `0`，浏览器区域被压缩而不是被覆盖。
+- 系统输入法模式只显示常驻切回按钮，不显示内置快捷键行或可见输入缓冲区。
 - 后台恢复后 bridge 状态正确。
 - 日志没有完整 URL、token、cookie、用户输入明文。
 - native 组件截图和 Warp web/desktop 组件语义一致，没有平台各自新增的视觉变体。

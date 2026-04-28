@@ -49,6 +49,8 @@
 - System IME 模式请求原生 `BasicTextField` 焦点并显示系统输入法，同时保留 `Built-in` 切回按钮和终端 accessory row。
 - 两种模式都必须作为 shell Column 的布局子节点挤压 browser pane；禁止用浮层覆盖 WebView。
 - System IME 模式必须消费 IME bottom inset，让 accessory row 位于系统输入法上方，同时继续压缩 browser pane。
+- System IME 模式当前只显示常驻 `Built-in keyboard` 切回按钮；不显示内置快捷键行，也不显示输入缓冲区。
+- System IME 模式仍保留不可见的 focused text field，用于触发系统输入法并转发 committed text。
 - 模式切换记录 `mobile_keyboard_mode_changed`，只记录模式和 session hash，不记录用户输入明文。
 
 ## 三段布局
