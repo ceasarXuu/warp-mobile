@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -32,6 +33,7 @@ internal fun TerminalSystemKeyboardPanel(
     tokens: WarpMobileTokens,
     enabled: Boolean,
     modifierState: TerminalModifierState,
+    modifier: Modifier = Modifier,
     onSwitchToBuiltinKeyboard: () -> Unit,
     onAction: (TerminalAction) -> Unit,
     onPrintable: (String, String) -> Unit,
@@ -50,8 +52,9 @@ internal fun TerminalSystemKeyboardPanel(
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .imePadding()
             .background(tokens.surface1)
             .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),

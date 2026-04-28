@@ -172,3 +172,38 @@ Result:
 - Compose constrains oversized children differently from Flutter's `SizedBox` inside `ClipRect`; the sliding band row must use a required oversized width, start alignment, and `clipToBounds()` to keep center/right bands in the expected positions.
 - When testing edge anchors, swiping further outward should log a drag cancel or remain on the same anchor; test both outward and inward directions.
 - Use logcat mode events plus UI hierarchy dumps to verify builtin/system IME exclusivity. A mode log alone does not prove the other input surface was removed.
+
+## 2026-04-29: Browser Pane Keyboard Squeeze
+
+### Change
+
+- Wrapped the WebView in a clipped weighted browser pane so native keyboard surfaces are normal layout siblings, not overlays.
+- Added `imePadding()` to the system IME panel so the accessory row and Android system keyboard jointly reduce browser height.
+- Passed a modifier through `TerminalKeyboardBar` so the shell can measure the top of either builtin or system keyboard mode.
+- Added debounced `mobile_shell_keyboard_layout_measured` logs with `browser_bottom_px`, `keyboard_top_px`, and `gap_px`.
+
+### Validation
+
+```powershell
+cd D:\warp-mobile\apps\mobile_android
+.\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug
+cd D:\warp-mobile
+adb install -r -t -g apps\mobile_android\app\build\outputs\apk\debug\app-debug.apk
+adb logcat -c
+adb shell am start -n dev.warp.mobile.debug/dev.warp.mobile.MainActivity -a android.intent.action.VIEW -d "https://app.warp.dev/session/{uuid}"
+adb shell input tap 1050 1960
+adb shell input tap 142 1290
+adb logcat -d -s WarpMobile
+```
+
+Result:
+
+- Build and Android unit tests passed.
+- Real device builtin mode logged `browser_bottom_px=1896`, `keyboard_top_px=1896`, `gap_px=0`.
+- Real device system IME mode logged `browser_bottom_px=1219`, `keyboard_top_px=1219`, `gap_px=0` while the Android system keyboard was visible.
+- Switching back to builtin mode returned to `browser_bottom_px=1896`, `keyboard_top_px=1896`, `gap_px=0`.
+
+### Operational Notes
+
+- A zero gap between browser bottom and keyboard top is the runtime invariant for "squeeze instead of cover".
+- Capture screenshots together with `mobile_shell_keyboard_layout_measured`; visual inspection alone can miss a WebView that is still drawing behind a Compose sibling.

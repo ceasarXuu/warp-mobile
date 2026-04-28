@@ -81,6 +81,7 @@ fun TerminalKeyboardBar(
     enabled: Boolean,
     sessionIdHash: String,
     logger: MobileEventLogger,
+    modifier: Modifier = Modifier,
     onAction: (TerminalAction) -> Unit,
 ) {
     var mode by remember { mutableStateOf(TerminalKeyboardMode.Builtin) }
@@ -140,6 +141,7 @@ fun TerminalKeyboardBar(
             sessionIdHash = sessionIdHash,
             logger = logger,
             modifierState = modifierState,
+            modifier = modifier,
             onSwitchToSystemKeyboard = { setMode(TerminalKeyboardMode.SystemIme) },
             onAction = ::dispatch,
             onPrintable = ::dispatchPrintable,
@@ -150,6 +152,7 @@ fun TerminalKeyboardBar(
             tokens = tokens,
             enabled = enabled,
             modifierState = modifierState,
+            modifier = modifier,
             onSwitchToBuiltinKeyboard = { setMode(TerminalKeyboardMode.Builtin) },
             onAction = { action -> dispatch(action, null) },
             onPrintable = { value, keyId -> dispatchPrintable(value, keyId, null) },
@@ -165,6 +168,7 @@ private fun TerminalBuiltinKeyboard(
     sessionIdHash: String,
     logger: MobileEventLogger,
     modifierState: TerminalModifierState,
+    modifier: Modifier,
     onSwitchToSystemKeyboard: () -> Unit,
     onAction: (TerminalAction, KeyboardBandAnchor?) -> Unit,
     onPrintable: (String, String, KeyboardBandAnchor?) -> Unit,
@@ -184,7 +188,7 @@ private fun TerminalBuiltinKeyboard(
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(272.dp)
             .background(tokens.surface1)

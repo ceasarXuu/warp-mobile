@@ -134,6 +134,7 @@ adb logcat -s WarpMobileRemote WarpBridge WarpKeyboard WebView
 - Ctrl+C、Tab、Esc、方向键、Backspace、Enter 正常。
 - 长按重复可取消。
 - 切换系统输入法后焦点返回终端。
+- 内置键盘和系统输入法弹出后，`mobile_shell_keyboard_layout_measured.gap_px` 稳定为 `0`，浏览器区域被压缩而不是被覆盖。
 - 后台恢复后 bridge 状态正确。
 - 日志没有完整 URL、token、cookie、用户输入明文。
 - native 组件截图和 Warp web/desktop 组件语义一致，没有平台各自新增的视觉变体。
@@ -166,8 +167,9 @@ adb logcat -s WarpMobileRemote WarpBridge WarpKeyboard WebView
 
 1. 记录 Android window inset。
 2. 记录 Web visual viewport height。
-3. 判断是否 Android 和 Web 都做了重复补偿。
-4. 横竖屏分别截图留档。
+3. 查 `mobile_shell_keyboard_layout_measured`，确认 `browser_bottom_px == keyboard_top_px`。
+4. 判断是否 Android 和 Web 都做了重复补偿。
+5. 横竖屏分别截图留档。
 
 ## 退出标准
 
