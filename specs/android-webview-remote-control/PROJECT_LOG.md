@@ -29,6 +29,35 @@ Result:
 - Persist URLs through the same parser used by App Links. Invalid restored tabs should be dropped with `mobile_tab_restore_dropped` instead of crashing or blocking the whole shell.
 - Use the shared Android WebView profile for tab auth continuity; do not introduce per-tab isolated WebView data stores unless the product explicitly asks for separate identities.
 
+## 2026-04-29: WebView Browser Data Persistence
+
+### Change
+
+- Made embedded browser data persistence explicit for remote tabs.
+- Kept DOM storage enabled and enabled WebView database storage for web auth flows that still rely on it.
+- Flushed the WebView cookie jar when pages finish loading and when the Activity pauses or is destroyed.
+- Added `mobile_webview_persistent_state_flushed` logs with a flush reason.
+
+### Validation
+
+```powershell
+cd D:\warp-mobile\apps\mobile_android
+.\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug
+```
+
+Result:
+
+- `.\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug`: passed.
+- Real device reinstall without clearing app data preserved the existing two saved tabs.
+- Real device launch emitted `mobile_webview_persistent_state_flushed` for `page_finished`.
+- Pressing Home emitted `mobile_webview_persistent_state_flushed` for `activity_pause`.
+- The supplied real session link still reached the current unauthenticated service response (`401` from `app.warp.dev/auth/session`), so a completed login persistence pass needs a valid authenticated account session.
+
+### Operational Notes
+
+- Android WebView localStorage/IndexedDB are already tied to the app WebView profile. The common restart-login failure mode is unflushed auth cookies, especially after external auth redirects.
+- Do not call `pm clear` when verifying browser-session persistence. That intentionally deletes the app WebView profile and should only be used for first-run welcome tests.
+
 ## 2026-04-29: Mobile Design Token Exporter
 
 ### Change

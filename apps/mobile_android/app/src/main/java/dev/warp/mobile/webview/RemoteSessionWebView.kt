@@ -38,6 +38,8 @@ object RemoteSessionWebView {
             tag = request.loadUrl
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            @Suppress("DEPRECATION")
+            settings.databaseEnabled = true
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
@@ -49,6 +51,11 @@ object RemoteSessionWebView {
             webViewClient = guardedWebViewClient(logger)
             loadRequest(request, logger)
         }
+    }
+
+    fun flushPersistentState(logger: MobileEventLogger, reason: String) {
+        CookieManager.getInstance().flush()
+        logger.event("mobile_webview_persistent_state_flushed", mapOf("reason" to reason))
     }
 
     fun update(webView: WebView, request: SessionLaunchRequest, logger: MobileEventLogger) {
@@ -130,6 +137,10 @@ object RemoteSessionWebView {
                         "status" to errorResponse.statusCode.toString(),
                     ),
                 )
+            }
+
+            override fun onPageFinished(view: WebView, url: String) {
+                flushPersistentState(logger, "page_finished")
             }
 
             override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: android.net.http.SslError) {

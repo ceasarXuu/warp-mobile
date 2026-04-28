@@ -14,6 +14,7 @@ import dev.warp.mobile.shell.RemoteScreenState
 import dev.warp.mobile.tabs.RemoteTab
 import dev.warp.mobile.tabs.RemoteTabSnapshot
 import dev.warp.mobile.tabs.RemoteTabStore
+import dev.warp.mobile.webview.RemoteSessionWebView
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
@@ -45,7 +46,13 @@ class MainActivity : ComponentActivity() {
         resolveLaunch(intent, LaunchSource.NEW_INTENT)
     }
 
+    override fun onPause() {
+        RemoteSessionWebView.flushPersistentState(logger, "activity_pause")
+        super.onPause()
+    }
+
     override fun onDestroy() {
+        RemoteSessionWebView.flushPersistentState(logger, "activity_destroy")
         logger.event("mobile_shell_destroyed")
         super.onDestroy()
     }
