@@ -18,6 +18,13 @@
 - More sheet 提供导航键、F1-F12、控制键和特殊字符。
 - 输入 ready 前短缓冲，失败后有日志。
 
+当前落地参考文件：
+
+- Astropath 行为参考：`D:\Astropath\apps\mobile_flutter\lib\terminal\terminal_builtin_keyboard.dart`
+- Astropath action 参考：`D:\Astropath\apps\mobile_flutter\lib\terminal\terminal_action_dispatcher.dart`
+- Android native 落地：`D:\warp-mobile\apps\mobile_android\app\src\main\java\dev\warp\mobile\keyboard\TerminalKeyboardBar.kt`
+- Android action 落地：`D:\warp-mobile\apps\mobile_android\app\src\main\java\dev\warp\mobile\keyboard\TerminalAction.kt`
+
 不直接复用内容：
 
 - 不复制 Flutter widget 代码。
@@ -45,6 +52,13 @@
 - Tab、`=`、`:`、`_`、`$`。
 - 括号和反斜杠。
 
+Android 第一版实现为 `Control` anchor：
+
+- Esc、Tab。
+- Ctrl+C、Ctrl+D、Ctrl+Z、Ctrl+L。
+- Backspace、Delete。
+- `=`, `:`, `_`, `$`, `[`, `]`, `\`。
+
 ### Center
 
 主输入区：
@@ -63,6 +77,13 @@
 - Ctrl/Alt/Shift active 使用 accent outline 或 surface overlay，不另造新颜色。
 - Viewer-only、disconnected、auth-required 禁用态映射 `Disabled`，不只降低 opacity。
 
+Android 第一版实现为 `Keys` anchor，并作为默认 anchor：
+
+- 顶行：Esc、`-`, `/`, `.`, `~`, `|`, `+`, Backspace。
+- 数字行：`1` 到 `0`。
+- QWERTY 字母区：`qwertyuiop`、`asdfghjkl`、`zxcvbnm`。
+- 修饰和动作行：Shift、Ctrl、Alt、Space、Enter。
+
 ### Right Peek
 
 导航和 shell 符号：
@@ -71,6 +92,13 @@
 - Home、End、PageUp、PageDown。
 - Delete。
 - `>`, `<`, `&`, `;`, `*`, `?`, quote。
+
+Android 第一版实现为 `Nav` anchor：
+
+- PageUp、Home、Up、End、PageDown。
+- Left、Down、Right。
+- `;`, `&`, `*`, `<`, `>`, `?`, `!`, `(`, `)`。
+- Delete、Backspace、Enter。
 
 ## 状态机
 
@@ -135,6 +163,29 @@ Dispatcher 输出：
 - raw key -> `sendRaw`。
 - navigation -> `sendNavigation`。
 
+Android 第一版 bridge message：
+
+```json
+{
+  "kind": "TERMINAL_ACTION",
+  "version": 1,
+  "sequenceId": "android-keyboard-1",
+  "source": "android_builtin_keyboard",
+  "action": {
+    "type": "sendNavigation",
+    "payload": "\u001b[F",
+    "payloadHex": "1b 5b 46",
+    "keyId": "end",
+    "printableLength": 0,
+    "navigationKey": "end",
+    "modifiedKey": null,
+    "modifiers": []
+  }
+}
+```
+
+日志禁止记录 printable 明文；Android 第一版只记录 `action_type`、`key_id`、`printable_length`、`navigation_key`、`modified_key`、`modifiers` 和 session hash。
+
 ## Repeat Press
 
 适用按键：
@@ -155,12 +206,16 @@ Dispatcher 输出：
 
 参数应集中配置，便于不同设备调优。
 
+Android 第一版已对 Backspace、Delete、方向键、PageUp、PageDown 接入长按重复，参数沿用 Astropath 默认值：500ms 初始延迟、80ms 重复间隔。
+
 ## Feedback
 
 - 支持触觉反馈偏好。
 - 支持按键音偏好。
 - 长按重复不应每 80ms 都触发强反馈，避免干扰。
 - 反馈失败不影响输入发送。
+
+Android 第一版先接入 native haptic feedback。按键音和偏好持久化后续和 Settings 模块一起落地，不能把偏好状态散落在键盘组件内部。
 
 ## 输入缓冲
 

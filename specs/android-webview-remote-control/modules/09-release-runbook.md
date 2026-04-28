@@ -15,23 +15,23 @@
 
 ## 环境检查
 
-Android module 存在后的预期命令：
+当前 Android module 命令：
 
 ```powershell
 cd D:\warp-mobile
-.\gradlew -p apps\mobile_android :app:tasks
+.\apps\mobile_android\gradle.ps1 :app:tasks
 adb devices
 ```
 
-如果仓库后续增加 wrapper script，优先使用 wrapper，保证 build defines 和本地配置一致。
+`apps\mobile_android\gradle.ps1` 会在本机缺少 Gradle 时下载 Gradle 8.10.2 到 `%LOCALAPPDATA%\WarpMobile\gradle`，并在 `JAVA_HOME` 未设置时使用 Android Studio 的 `D:\Android Studio\jbr`。
 
 ## Debug Build
 
-预期命令：
+当前命令：
 
 ```powershell
 cd D:\warp-mobile
-.\gradlew -p apps\mobile_android :app:assembleDebug
+.\apps\mobile_android\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug
 ```
 
 预期产物：
@@ -43,7 +43,7 @@ apps/mobile_android/app/build/outputs/apk/debug/app-debug.apk
 ## Install
 
 ```powershell
-adb install -r apps\mobile_android\app\build\outputs\apk\debug\app-debug.apk
+adb install -r -t -g apps\mobile_android\app\build\outputs\apk\debug\app-debug.apk
 ```
 
 如果因为旧包签名不一致安装失败，只卸载该 debug package：
@@ -54,15 +54,27 @@ adb uninstall dev.warp.mobile.debug
 
 只能卸载明确 app package，不能做宽泛设备清理。
 
+如果小米设备返回 `INSTALL_FAILED_USER_RESTRICTED`，先点亮并解锁设备，在手机上确认 USB 安装授权，然后重试同一个 install 命令。
+
 ## 使用 App Link 启动
 
 ```powershell
 adb shell am start `
+  -n dev.warp.mobile.debug/dev.warp.mobile.MainActivity `
   -a android.intent.action.VIEW `
   -d "https://app.warp.dev/session/00000000-0000-0000-0000-000000000000?pwd=secret"
 ```
 
 替换 host 和 session id 为当前环境。不要把真实 secret 粘贴进提交文档或 issue comment。
+
+本地 fake WebView smoke 使用：
+
+```powershell
+adb shell am start `
+  -n dev.warp.mobile.debug/dev.warp.mobile.MainActivity `
+  -a android.intent.action.VIEW `
+  -d "https://debug.warp.local/session/00000000-0000-0000-0000-000000000000"
+```
 
 ## Logcat Filters
 
@@ -77,15 +89,29 @@ adb logcat WarpMobile:D WarpMobileWebView:D WarpMobileKeyboard:D *:S
 adb logcat -s WarpMobile
 ```
 
-成功 join 的预期事件顺序：
+当前 fake-page smoke 的预期事件顺序：
 
-1. `mobile_link_open_received`
+1. `mobile_shell_created`
 2. `mobile_link_parse_succeeded`
 3. `mobile_webview_load_started`
-4. `mobile_webview_page_finished`
-5. `mobile_bridge_ready_state_changed`
-6. `mobile_session_capability_received`
-7. `mobile_session_input_enabled` 或 `mobile_session_input_disabled`
+4. `mobile_bridge_message_received` with `BRIDGE_READY`
+5. `mobile_bridge_message_received` with `SESSION_INPUT_CAPABILITY_CHANGED`
+6. `mobile_keyboard_action_dispatched`
+7. `mobile_bridge_message_sent`
+8. `mobile_bridge_message_received` with fake ACK
+
+当前真机快速键盘 smoke：
+
+```powershell
+adb logcat -c
+adb shell am start -n dev.warp.mobile.debug/dev.warp.mobile.MainActivity -a android.intent.action.VIEW -d "https://debug.warp.local/session/00000000-0000-0000-0000-000000000000"
+adb shell input tap 1035 2646
+adb shell input tap 1000 1960
+adb shell input tap 735 2070
+adb logcat -d -s WarpMobile
+```
+
+坐标基于当前测试设备 `1220x2712`。更换设备后先执行 `adb shell uiautomator dump /sdcard/warp-mobile-ui.xml` 检查按键 bounds，再更新临时 smoke 坐标；不要把坐标写死进自动化测试。
 
 ## 发布前冒烟
 

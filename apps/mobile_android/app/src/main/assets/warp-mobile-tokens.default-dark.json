@@ -1,0 +1,255 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "themeName": "warp-default-dark",
+    "generatedFrom": "warp_core::ui::theme::WarpTheme"
+  },
+  "colors": {
+    "background": {
+      "kind": "solid",
+      "rawWarpFill": "#000000",
+      "solidMidpoint": "#000000ff",
+      "solidBiasTop": "#000000ff",
+      "solidBiasRight": "#000000ff"
+    },
+    "foreground": {
+      "kind": "solid",
+      "rawWarpFill": "#ffffff",
+      "solidMidpoint": "#ffffffff",
+      "solidBiasTop": "#ffffffff",
+      "solidBiasRight": "#ffffffff"
+    },
+    "accent": {
+      "kind": "solid",
+      "rawWarpFill": "#19aad8",
+      "solidMidpoint": "#19aad8ff",
+      "solidBiasTop": "#19aad8ff",
+      "solidBiasRight": "#19aad8ff"
+    },
+    "surface1": {
+      "kind": "solid",
+      "rawWarpFill": "#0c0c0c",
+      "solidMidpoint": "#0c0c0cff",
+      "solidBiasTop": "#0c0c0cff",
+      "solidBiasRight": "#0c0c0cff"
+    },
+    "surface2": {
+      "kind": "solid",
+      "rawWarpFill": "#191919",
+      "solidMidpoint": "#191919ff",
+      "solidBiasTop": "#191919ff",
+      "solidBiasRight": "#191919ff"
+    },
+    "surface3": {
+      "kind": "solid",
+      "rawWarpFill": "#262626",
+      "solidMidpoint": "#262626ff",
+      "solidBiasTop": "#262626ff",
+      "solidBiasRight": "#262626ff"
+    },
+    "outline": {
+      "kind": "solid",
+      "rawWarpFill": "#ffffff",
+      "solidMidpoint": "#ffffff19",
+      "solidBiasTop": "#ffffff19",
+      "solidBiasRight": "#ffffff19"
+    },
+    "textMain": "#ffffffe5",
+    "textSub": "#ffffff99",
+    "textHint": "#ffffff66",
+    "textDisabled": "#ffffff66",
+    "activeUiText": "#ffffffe5",
+    "nonactiveUiText": "#ffffff99",
+    "disabledUiText": "#ffffff66",
+    "error": "#bc362aff",
+    "warning": "#c28000ff",
+    "green": "#1ca05aff",
+    "yellow": "#e5a01aff",
+    "surfaceOverlay1": {
+      "kind": "solid",
+      "rawWarpFill": "#ffffff",
+      "solidMidpoint": "#ffffff0c",
+      "solidBiasTop": "#ffffff0c",
+      "solidBiasRight": "#ffffff0c"
+    },
+    "surfaceOverlay2": {
+      "kind": "solid",
+      "rawWarpFill": "#ffffff",
+      "solidMidpoint": "#ffffff19",
+      "solidBiasTop": "#ffffff19",
+      "solidBiasRight": "#ffffff19"
+    },
+    "surfaceOverlay3": {
+      "kind": "solid",
+      "rawWarpFill": "#ffffff",
+      "solidMidpoint": "#ffffff26",
+      "solidBiasTop": "#ffffff26",
+      "solidBiasRight": "#ffffff26"
+    },
+    "accentOverlay": {
+      "kind": "solid",
+      "rawWarpFill": "#19aad8",
+      "solidMidpoint": "#19aad83f",
+      "solidBiasTop": "#19aad83f",
+      "solidBiasRight": "#19aad83f"
+    }
+  },
+  "terminalColors": {
+    "normal": {
+      "black": "#616161ff",
+      "red": "#ff8272ff",
+      "green": "#b4fa72ff",
+      "yellow": "#fefdc2ff",
+      "blue": "#a5d5feff",
+      "magenta": "#ff8ffdff",
+      "cyan": "#d0d1feff",
+      "white": "#f1f1f1ff"
+    },
+    "bright": {
+      "black": "#8e8e8eff",
+      "red": "#ffc4bdff",
+      "green": "#d6fcb9ff",
+      "yellow": "#fefdd5ff",
+      "blue": "#c1e3feff",
+      "magenta": "#ffb1feff",
+      "cyan": "#e5e6feff",
+      "white": "#feffffff"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": {
+        "warpVariant": "Primary",
+        "defaultBackground": {
+          "kind": "solid",
+          "rawWarpFill": "#19aad8",
+          "solidMidpoint": "#19aad8ff",
+          "solidBiasTop": "#19aad8ff",
+          "solidBiasRight": "#19aad8ff"
+        },
+        "hoverBackground": {
+          "kind": "solid",
+          "rawWarpFill": "#19aad8",
+          "solidMidpoint": "#19aad899",
+          "solidBiasTop": "#19aad899",
+          "solidBiasRight": "#19aad899"
+        },
+        "pressedBackground": {
+          "kind": "solid",
+          "rawWarpFill": "#19aad8",
+          "solidMidpoint": "#19aad866",
+          "solidBiasTop": "#19aad866",
+          "solidBiasRight": "#19aad866"
+        },
+        "border": null,
+        "text": "#000000ff",
+        "keyboardShortcutBackground": null
+      },
+      "secondary": {
+        "warpVariant": "Secondary",
+        "defaultBackground": null,
+        "hoverBackground": {
+          "kind": "solid",
+          "rawWarpFill": "#ffffff",
+          "solidMidpoint": "#ffffff19",
+          "solidBiasTop": "#ffffff19",
+          "solidBiasRight": "#ffffff19"
+        },
+        "pressedBackground": {
+          "kind": "solid",
+          "rawWarpFill": "#ffffff",
+          "solidMidpoint": "#ffffff26",
+          "solidBiasTop": "#ffffff26",
+          "solidBiasRight": "#ffffff26"
+        },
+        "border": "#333333ff",
+        "text": "#ffffffff",
+        "keyboardShortcutBackground": "#262626ff"
+      },
+      "naked": {
+        "warpVariant": "Naked",
+        "defaultBackground": null,
+        "hoverBackground": {
+          "kind": "solid",
+          "rawWarpFill": "#ffffff",
+          "solidMidpoint": "#ffffff19",
+          "solidBiasTop": "#ffffff19",
+          "solidBiasRight": "#ffffff19"
+        },
+        "pressedBackground": {
+          "kind": "solid",
+          "rawWarpFill": "#ffffff",
+          "solidMidpoint": "#ffffff26",
+          "solidBiasTop": "#ffffff26",
+          "solidBiasRight": "#ffffff26"
+        },
+        "border": null,
+        "text": "#ffffffff",
+        "keyboardShortcutBackground": "#262626ff"
+      },
+      "disabled": {
+        "warpVariant": "Disabled",
+        "defaultBackground": {
+          "kind": "solid",
+          "rawWarpFill": "#333333",
+          "solidMidpoint": "#333333ff",
+          "solidBiasTop": "#333333ff",
+          "solidBiasRight": "#333333ff"
+        },
+        "hoverBackground": {
+          "kind": "solid",
+          "rawWarpFill": "#333333",
+          "solidMidpoint": "#333333ff",
+          "solidBiasTop": "#333333ff",
+          "solidBiasRight": "#333333ff"
+        },
+        "pressedBackground": {
+          "kind": "solid",
+          "rawWarpFill": "#333333",
+          "solidMidpoint": "#333333ff",
+          "solidBiasTop": "#333333ff",
+          "solidBiasRight": "#333333ff"
+        },
+        "border": null,
+        "text": "#666666ff",
+        "keyboardShortcutBackground": "#262626ff"
+      },
+      "dangerPrimary": {
+        "warpVariant": "DangerPrimary",
+        "defaultBackground": {
+          "kind": "solid",
+          "rawWarpFill": "#ffc0b8",
+          "solidMidpoint": "#ffc0b8ff",
+          "solidBiasTop": "#ffc0b8ff",
+          "solidBiasRight": "#ffc0b8ff"
+        },
+        "hoverBackground": {
+          "kind": "solid",
+          "rawWarpFill": "#ff8272",
+          "solidMidpoint": "#ff8272ff",
+          "solidBiasTop": "#ff8272ff",
+          "solidBiasRight": "#ff8272ff"
+        },
+        "pressedBackground": {
+          "kind": "solid",
+          "rawWarpFill": "#ffc0b8",
+          "solidMidpoint": "#ffc0b8ff",
+          "solidBiasTop": "#ffc0b8ff",
+          "solidBiasRight": "#ffc0b8ff"
+        },
+        "border": null,
+        "text": "#000000ff",
+        "keyboardShortcutBackground": null
+      }
+    },
+    "keyboard": {
+      "printableKeyVariant": "Secondary",
+      "toolKeyVariant": "Naked",
+      "primaryKeyVariant": "Primary",
+      "disabledKeyVariant": "Disabled",
+      "activeModifierBorderToken": "colors.accent",
+      "activeModifierBackgroundToken": "colors.accentOverlay",
+      "moreSheetComponent": "Dialog"
+    }
+  }
+}

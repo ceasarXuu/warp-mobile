@@ -55,3 +55,8 @@ desired_behavior.md
 
 # Don't include the python cache for bundled skills.
 __pycache__/
+
+# Android mobile shell local build output
+apps/mobile_android/.gradle/
+apps/mobile_android/**/build/
+apps/mobile_android/local.properties
