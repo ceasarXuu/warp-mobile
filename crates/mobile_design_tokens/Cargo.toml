@@ -1,0 +1,12 @@
+[package]
+name = "mobile_design_tokens"
+version = "0.1.0"
+edition = "2021"
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+warp_core.workspace = true
+warpui.workspace = true

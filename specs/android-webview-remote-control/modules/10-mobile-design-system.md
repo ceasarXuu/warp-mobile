@@ -90,6 +90,9 @@ Generated artifacts:
   warp-mobile-components.json
   bridge and keyboard action schemas
 
+Current implementation:
+  crates/mobile_design_tokens
+
 Android:
   WarpMobileTheme
   WarpButton

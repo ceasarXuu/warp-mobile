@@ -7941,6 +7941,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mobile_design_tokens"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "warp_core",
+ "warpui",
+]
+
+[[package]]
 name = "mockall"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

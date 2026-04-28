@@ -6,6 +6,7 @@
 
 - [PRODUCT.md](PRODUCT.md): 用户目标、范围、核心体验、验收标准。
 - [TECH.md](TECH.md): 当前代码依据、架构方案、跨端边界、阶段计划。
+- [PROJECT_LOG.md](PROJECT_LOG.md): 实施检查点、验证结果、操作经验。
 
 ## 模块文档
 
@@ -20,7 +21,7 @@
 - [modules/07-observability.md](modules/07-observability.md): 日志、指标、诊断包和隐私脱敏。
 - [modules/08-testing-validation.md](modules/08-testing-validation.md): 单测、Instrumentation、Web/WASM、真实设备冒烟。
 - [modules/09-release-runbook.md](modules/09-release-runbook.md): 构建、安装、启动、logcat、调试和发布前操作手册。
-- [modules/10-mobile-design-system.md](modules/10-mobile-design-system.md): Android/iOS native 视觉一致性、Warp token 复用、组件映射和防分叉规则。
+- [modules/10-mobile-design-system.md](modules/10-mobile-design-system.md): Android/iOS native 视觉一致性、Warp token 复用、组件映射和防分叉规则。首个实现入口是 `crates/mobile_design_tokens`。
 
 ## 总体切分
 
