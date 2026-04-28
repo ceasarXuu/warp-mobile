@@ -171,6 +171,16 @@ private fun ReadyState(
         )
     }
 
+    LaunchedEffect(state.pendingWebUrl, state.webNavigationId, webView) {
+        val pendingWebUrl = state.pendingWebUrl ?: return@LaunchedEffect
+        RemoteSessionWebView.loadAllowedUrl(
+            webView = webView,
+            rawUrl = pendingWebUrl,
+            logger = logger,
+            reason = "auth_continuation",
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()

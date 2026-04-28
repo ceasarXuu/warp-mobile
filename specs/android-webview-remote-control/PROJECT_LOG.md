@@ -58,17 +58,22 @@ Result:
 - Android WebView localStorage/IndexedDB are already tied to the app WebView profile. The common restart-login failure mode is unflushed auth cookies, especially after external auth redirects.
 - Do not call `pm clear` when verifying browser-session persistence. That intentionally deletes the app WebView profile and should only be used for first-run welcome tests.
 
-## 2026-04-29: Google Login WebView Navigation
+## 2026-04-29: Embedded OAuth Navigation
 
 ### Change
 
-- Expanded the embedded browser allowlist for Google OAuth/login support hosts.
+- Expanded the embedded browser allowlist for Google and GitHub OAuth/login support hosts.
 - Enabled multiple-window support in the main WebView.
 - Captured OAuth popup windows into the visible remote WebView instead of letting them load in an invisible child WebView.
+- Kept OAuth provider URLs in the embedded WebView so auth state cookies and final Warp session cookies remain in one browser profile.
+- Removed Android WebView's `; wv` user-agent marker for the main WebView and OAuth popup WebViews to avoid Google's `disallowed_useragent` page.
+- Routed non-session `https://app.warp.dev/...` continuation links back into the selected in-app WebView.
 - Added popup diagnostics:
   - `mobile_webview_popup_requested`
   - `mobile_webview_popup_url_accepted`
   - `mobile_webview_popup_url_blocked`
+  - `mobile_auth_continuation_received`
+  - `mobile_webview_url_load_requested`
 
 ### Validation
 
@@ -88,12 +93,14 @@ Result:
 - `.\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug`: passed.
 - Real device reinstall without clearing app data succeeded.
 - Real device startup restored the saved tabs and loaded the real session link.
-- Google login button tap still needs an interactive account test to confirm the visible sign-in page, but the code path now logs popup requests and blocked popup hosts explicitly.
+- Real device startup logged `mobile_webview_user_agent_configured` with `contains_webview_marker=false`.
+- Google and GitHub login button taps still need an interactive account test to confirm provider completion.
+- An external-browser OAuth attempt returned 404 because OAuth state/session cookies were split between the embedded WebView and the external browser; provider navigation now remains inside WebView to keep cookies coherent.
 
 ### Operational Notes
 
-- A blank screen after Google login can be caused by either host blocking or unhandled `window.open`. Check both `mobile_webview_external_url_blocked` and the popup logs.
-- Keep Google auth allowlisting limited to OAuth/login support domains. Do not broadly allow arbitrary non-auth third-party navigation.
+- A blank screen after OAuth login can be caused by host blocking, unhandled `window.open`, missing `app.warp.dev` continuation routing, or an OAuth state cookie split. Check `mobile_webview_external_url_blocked`, popup logs, and `mobile_auth_continuation_received`.
+- Keep OAuth allowlisting limited to provider login/support domains. Do not broadly allow arbitrary non-auth third-party navigation.
 
 ## 2026-04-29: System IME Cursor Scroll
 

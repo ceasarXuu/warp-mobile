@@ -2,6 +2,7 @@ package dev.warp.mobile.webview
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.net.Uri
 import android.os.Message
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
@@ -31,9 +32,14 @@ object RemoteSessionWebView {
         "accounts.google.com",
         "accounts.youtube.com",
         "apis.google.com",
+        "github.com",
+        "api.github.com",
         "oauth2.googleapis.com",
     )
     private val allowedAuthHostSuffixes = setOf(
+        ".github.com",
+        ".githubassets.com",
+        ".githubusercontent.com",
         ".google.com",
         ".gstatic.com",
         ".googleusercontent.com",
@@ -50,6 +56,11 @@ object RemoteSessionWebView {
             tag = request.loadUrl
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            settings.userAgentString = mobileChromeUserAgent(settings.userAgentString)
+            logger.event(
+                "mobile_webview_user_agent_configured",
+                mapOf("contains_webview_marker" to settings.userAgentString.contains("; wv").toString()),
+            )
             @Suppress("DEPRECATION")
             settings.databaseEnabled = true
             settings.allowFileAccess = false
@@ -75,6 +86,20 @@ object RemoteSessionWebView {
         if (webView.tag == request.loadUrl) return
         webView.tag = request.loadUrl
         webView.loadRequest(request, logger)
+    }
+
+    fun loadAllowedUrl(webView: WebView?, rawUrl: String, logger: MobileEventLogger, reason: String) {
+        if (webView == null) {
+            logger.warn("mobile_webview_url_load_skipped", mapOf("reason" to "webview_not_ready"))
+            return
+        }
+        val host = Uri.parse(rawUrl).host.orEmpty()
+        if (!isAllowedHost(host)) {
+            logger.warn("mobile_webview_url_load_blocked", mapOf("host" to host, "reason" to reason))
+            return
+        }
+        logger.event("mobile_webview_url_load_requested", mapOf("host" to host, "reason" to reason))
+        webView.loadUrl(rawUrl)
     }
 
     fun dispatchTerminalAction(webView: WebView?, action: TerminalAction, logger: MobileEventLogger) {
@@ -129,6 +154,7 @@ object RemoteSessionWebView {
                 val popupView = WebView(view.context).apply {
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
+                    settings.userAgentString = mobileChromeUserAgent(settings.userAgentString)
                     @Suppress("DEPRECATION")
                     settings.databaseEnabled = true
                     settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
@@ -266,6 +292,12 @@ object RemoteSessionWebView {
               return false;
             })();
         """.trimIndent()
+    }
+
+    private fun mobileChromeUserAgent(defaultUserAgent: String): String {
+        return defaultUserAgent
+            .replace("; wv", "")
+            .replace(" Version/4.0", "")
     }
 
     private fun fakeRemoteControlPage(): String {

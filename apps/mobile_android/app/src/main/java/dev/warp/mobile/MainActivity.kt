@@ -1,6 +1,7 @@
 package dev.warp.mobile
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -63,6 +64,10 @@ class MainActivity : ComponentActivity() {
             restoreTabs()
             return
         }
+        if (isWarpWebContinuation(rawUrl)) {
+            routeWebContinuation(rawUrl)
+            return
+        }
         createTab(rawUrl, source)
     }
 
@@ -75,6 +80,24 @@ class MainActivity : ComponentActivity() {
             return
         }
         screenState.value = RemoteScreenState.Ready(snapshot.tabs, snapshot.selectedTabId)
+    }
+
+    private fun routeWebContinuation(rawUrl: String) {
+        val current = screenState.value as? RemoteScreenState.Ready
+        val snapshot = current?.let { RemoteTabSnapshot(it.tabs, it.selectedTabId) } ?: tabStore.load(logger)
+        val selectedTabId = snapshot.selectedTabId
+        if (snapshot.tabs.isEmpty() || selectedTabId == null) {
+            logger.warn("mobile_auth_continuation_rejected", mapOf("reason" to "no_open_tab"))
+            screenState.value = RemoteScreenState.Welcome
+            return
+        }
+        logger.event("mobile_auth_continuation_received", mapOf("host" to Uri.parse(rawUrl).host.orEmpty()))
+        screenState.value = RemoteScreenState.Ready(
+            tabs = snapshot.tabs,
+            selectedTabId = selectedTabId,
+            pendingWebUrl = rawUrl,
+            webNavigationId = System.currentTimeMillis(),
+        )
     }
 
     private fun createTab(rawUrl: String, source: LaunchSource): String? {
@@ -128,6 +151,13 @@ class MainActivity : ComponentActivity() {
         val snapshot = RemoteTabSnapshot(ready.tabs, tabId)
         tabStore.save(snapshot, logger)
         logger.event("mobile_tab_selected", mapOf("tab_id" to tabId))
-        screenState.value = ready.copy(selectedTabId = tabId)
+        screenState.value = ready.copy(selectedTabId = tabId, pendingWebUrl = null)
+    }
+
+    private fun isWarpWebContinuation(rawUrl: String): Boolean {
+        val uri = runCatching { Uri.parse(rawUrl) }.getOrNull() ?: return false
+        return uri.scheme == "https" &&
+            uri.host == "app.warp.dev" &&
+            !uri.path.orEmpty().startsWith("/session")
     }
 }

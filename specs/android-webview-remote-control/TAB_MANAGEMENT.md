@@ -17,7 +17,7 @@ Tab persistence stores the normalized `loadUrl`, not WebView DOM state. Auth and
 
 The embedded browser profile is also expected to survive app restarts. `RemoteSessionWebView` enables DOM storage and Web SQL database storage for web auth flows, accepts first-party and third-party cookies, and flushes the cookie jar after page finishes plus Activity pause/destroy. Do not add per-tab or per-launch isolated WebView data directories unless the product explicitly needs separate identities.
 
-Google login is allowed inside the embedded browser. The navigation allowlist includes Warp app/session hosts plus Google OAuth/login support domains, and WebView popup windows are captured back into the visible remote WebView so OAuth flows that use `window.open` do not land in an invisible blank WebView.
+Google and GitHub login stay in the embedded browser so OAuth state cookies and final Warp session cookies remain in the same WebView profile. The navigation allowlist includes Warp app/session hosts plus OAuth support domains, WebView popup windows are captured back into the visible remote WebView, and the WebView user agent removes Android's `; wv` marker to avoid Google's embedded-user-agent rejection page.
 
 ## UI Behavior
 
@@ -41,6 +41,9 @@ The feature emits structured `WarpMobile` events:
 - `mobile_webview_popup_requested`
 - `mobile_webview_popup_url_accepted`
 - `mobile_webview_popup_url_blocked`
+- `mobile_auth_continuation_received`
+- `mobile_auth_continuation_rejected`
+- `mobile_webview_url_load_requested`
 
 These logs are required for device smoke tests because WebView visual state alone cannot prove tab restore or shared auth behavior.
 
@@ -61,4 +64,6 @@ Real-device smoke should verify:
 - launching the app again restores the tab strip and selected tab,
 - creating another tab does not require another login after the first tab has authenticated.
 - force-stopping and reopening the app after web login preserves the embedded browser session.
-- tapping Google login navigates to a visible Google sign-in page instead of a blank screen, and logcat does not show `mobile_webview_popup_url_blocked` for expected Google OAuth hosts.
+- tapping Google login stays in the visible WebView and does not show Google's `disallowed_useragent` page.
+- tapping GitHub login stays in the visible WebView and does not get blocked by the embedded WebView host allowlist.
+- the `app.warp.dev` OAuth continuation opens back into the selected tab's WebView.
