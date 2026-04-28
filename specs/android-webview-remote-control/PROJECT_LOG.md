@@ -1,5 +1,35 @@
 # Android WebView Remote Control Project Log
 
+## 2026-04-29: Native Remote Client Feasibility Spike
+
+### Change
+
+- Added `specs/android-native-remote-client/TECH.md` for the aggressive no-WebView direction.
+- Documented the actual desktop/CLI evidence for device auth, session link parsing, hosted session-sharing WebSocket joins, terminal replay, and permissioned input.
+- Added a reusable hosted join probe at `specs/android-native-remote-client/tools/probe-session-join.mjs`.
+- Linked the auth-broker plan to the native-client feasibility document.
+
+### Validation
+
+```powershell
+Test-NetConnection -ComputerName sessions.app.warp.dev -Port 443
+node specs\android-native-remote-client\tools\probe-session-join.mjs `
+  https://app.warp.dev/session/{uuid} `
+  --version=v0.2026.04.27.15.32.stable_02
+```
+
+Result:
+
+- TCP connectivity to `sessions.app.warp.dev:443`: passed.
+- Hosted WebSocket opened and accepted a viewer `Initialize` send.
+- An initial unauthenticated bare-UUID probe returned `FailedToJoin Invalid`; repeated unauthenticated probes may close after initialize. Both outcomes keep the same conclusion: the next gate is authenticated join or session-secret handling, not WebView navigation.
+
+### Operational Notes
+
+- The probe should log only session hashes and protocol result kinds. Do not log raw session URLs, `pwd` secrets, or Firebase ID tokens.
+- A bare `/session/{uuid}` link is not enough evidence that native join will work. Preserve query params and test with a real authenticated Firebase ID token before implementing native terminal rendering.
+- Native renderer work should start only after an authenticated `JoinedSuccessfully` frame is captured from the hosted server.
+
 ## 2026-04-29: Persistent Remote Tabs
 
 ### Change

@@ -33,7 +33,7 @@ The source tree includes desktop/CLI device authorization and session-sharing pr
 - Render the terminal/session natively and send input through the protocol instead of the web page.
 - Keep the Astropath keyboard as an in-app native component.
 
-This is likely the cleanest end state for "native understands what is happening," but it is a larger product and protocol-porting project. It needs a spike to prove the hosted session-sharing server accepts the same auth and join flows from Android.
+This is likely the cleanest end state for "native understands what is happening," but it is a larger product and protocol-porting project. The feasibility notes and spike plan live in `specs/android-native-remote-client/TECH.md`. The first live probe confirmed that the hosted WebSocket endpoint is reachable and parses viewer initialization, but a bare UUID without a Firebase token/session secret is rejected with `FailedToJoin Invalid`; authenticated join is the next gate.
 
 ## Target Architecture With Backend Support
 
