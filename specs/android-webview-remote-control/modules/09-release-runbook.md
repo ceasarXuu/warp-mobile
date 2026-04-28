@@ -1,0 +1,148 @@
+# Module 09: Release Runbook
+
+## 模块目标
+
+记录 Android WebView 远控壳的构建、安装、启动、日志和发布前冒烟流程。脚本、module 路径和 package name 稳定后必须同步更新本文件。
+
+## 前置条件
+
+- Android Studio 已安装。
+- Android SDK 已安装。
+- JDK 17+ 可用。
+- Android 设备已开启 USB debugging。
+- Warp desktop 或已安装 app 可以启动 shared session。
+- 可访问 WebView 使用的 Warp server origin。
+
+## 环境检查
+
+Android module 存在后的预期命令：
+
+```powershell
+cd D:\warp-mobile
+.\gradlew -p apps\mobile_android :app:tasks
+adb devices
+```
+
+如果仓库后续增加 wrapper script，优先使用 wrapper，保证 build defines 和本地配置一致。
+
+## Debug Build
+
+预期命令：
+
+```powershell
+cd D:\warp-mobile
+.\gradlew -p apps\mobile_android :app:assembleDebug
+```
+
+预期产物：
+
+```text
+apps/mobile_android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+## Install
+
+```powershell
+adb install -r apps\mobile_android\app\build\outputs\apk\debug\app-debug.apk
+```
+
+如果因为旧包签名不一致安装失败，只卸载该 debug package：
+
+```powershell
+adb uninstall dev.warp.mobile.debug
+```
+
+只能卸载明确 app package，不能做宽泛设备清理。
+
+## 使用 App Link 启动
+
+```powershell
+adb shell am start `
+  -a android.intent.action.VIEW `
+  -d "https://app.warp.dev/session/00000000-0000-0000-0000-000000000000?pwd=secret"
+```
+
+替换 host 和 session id 为当前环境。不要把真实 secret 粘贴进提交文档或 issue comment。
+
+## Logcat Filters
+
+```powershell
+adb logcat -c
+adb logcat WarpMobile:D WarpMobileWebView:D WarpMobileKeyboard:D *:S
+```
+
+如果 logger 统一使用单 tag JSON：
+
+```powershell
+adb logcat -s WarpMobile
+```
+
+成功 join 的预期事件顺序：
+
+1. `mobile_link_open_received`
+2. `mobile_link_parse_succeeded`
+3. `mobile_webview_load_started`
+4. `mobile_webview_page_finished`
+5. `mobile_bridge_ready_state_changed`
+6. `mobile_session_capability_received`
+7. `mobile_session_input_enabled` 或 `mobile_session_input_disabled`
+
+## 发布前冒烟
+
+1. 清理旧 logcat。
+2. 安装 debug 或 release candidate APK。
+3. 用 App Link 打开 staging session。
+4. 验证 WebView 只加载 allowlist origin。
+5. 验证 bridge ready 和 session capability。
+6. 用内置键盘输入 harmless command。
+7. 验证 Ctrl+C、方向键、Backspace、Enter。
+8. 切换系统输入法并返回内置键盘。
+9. App 后台恢复、旋转屏幕。
+10. 导出诊断包。
+11. 确认日志和诊断包无完整 URL、token、cookie、用户输入明文。
+
+## 常见失败处理
+
+### `adb devices` 无设备
+
+- 检查 USB debugging。
+- 重新插拔设备。
+- 执行 `adb kill-server` 和 `adb start-server`。
+- 记录设备型号、Android 版本和 adb 输出。
+
+### 安装失败
+
+- 如果是 signature mismatch，只卸载明确 debug package。
+- 如果是 storage 或 ABI 问题，记录完整 `adb install` 输出。
+- 不执行全局清理或恢复出厂操作。
+
+### App Link 没有进入应用
+
+- 检查 manifest intent filter。
+- 检查 host 是否是当前 build allowlist。
+- 用 `adb shell am start` 直接启动，区分系统关联问题和 app 内解析问题。
+
+### WebView 空白
+
+- 查 WebView load 日志。
+- 检查 SSL、HTTP status、renderer crash。
+- Debug build 打开 WebView remote debugging 后用 Chrome inspect 检查 console。
+
+### 键盘无输入
+
+- 查 keyboard pressed event。
+- 查 bridge message sequence id。
+- 查 session capability 是否 disabled。
+- 查 WASM ack/reject。
+
+## 文档维护规则
+
+- 每次新增真实命令、打包路径、日志 tag、签名方式或调试技巧，都更新本文件。
+- 每次出现真实设备问题，补充失败处理路径。
+- 每次发布前冒烟流程变化，同步更新 `08-testing-validation.md`。
+
+## 退出标准
+
+- 构建、安装、启动、日志、冒烟和诊断都有固定操作入口。
+- 新成员可以按本文档完成一次移动远控发布前检查。
+- 失败时有明确日志路径，而不是从头试错。
