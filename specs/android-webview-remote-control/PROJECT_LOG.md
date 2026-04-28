@@ -210,6 +210,11 @@ Result:
   - backend-supported exchange into a WebView-ready Warp session.
   - WebView used only after session bootstrap.
 - Updated tab management docs to stop treating WebView OAuth user-agent tweaks as a durable fix.
+- Clarified the hosted-backend constraint: Android cannot transfer Chrome/Custom Tabs cookies into WebView without a server-supported bootstrap contract.
+- Added the Android-only recommendation:
+  - run login and remote web runtime in trusted browser/Custom Tabs,
+  - move the Astropath keyboard into an Android `InputMethodService`,
+  - or pursue a larger native session-sharing protocol client.
 
 ### Validation
 
@@ -219,6 +224,7 @@ Result:
 
 - Google officially rejects embedded WebView OAuth; user-agent spoofing can reduce one error page but still worsens provider trust signals and captcha frequency.
 - The previous external-browser attempt hit 404 because browser cookies and WebView cookies were split. A durable Custom Tabs path requires a backend/web session transfer contract.
+- If the backend cannot change, the durable Android-only choices are browser-owned remote runtime plus native IME, or a native protocol client. WebView-owned remote runtime plus browser-owned login cannot be made seamless on Android.
 
 ## 2026-04-29: Mobile Design Token Exporter
 
