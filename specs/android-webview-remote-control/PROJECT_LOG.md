@@ -129,6 +129,34 @@ Result:
 - System IME visibility changes and WebView resize are not atomic. Keep one immediate scroll request on mode switch and one follow-up request after native focus is acquired.
 - If a future Warp web terminal exposes a dedicated mobile bridge method for cursor reveal, prefer that over DOM selector probing.
 
+## 2026-04-29: Android App Branding
+
+### Change
+
+- Fixed the Android app label to `Warp`.
+- Reused the desktop stable channel icon source from `app/channels/stable/icon/no-padding/512x512.png`.
+- Generated Android launcher icons for mdpi, hdpi, xhdpi, xxhdpi, and xxxhdpi densities.
+- Wired both `android:icon` and `android:roundIcon` in the manifest.
+
+### Validation
+
+```powershell
+cd D:\warp-mobile\apps\mobile_android
+.\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug
+```
+
+Result:
+
+- `.\gradle.ps1 :app:testDebugUnitTest :app:assembleDebug`: passed.
+- Real device reinstall with the rebuilt APK succeeded.
+- `aapt dump badging` reported `application-label:'Warp'`.
+- `aapt dump badging` reported launcher icons for mdpi, hdpi, xhdpi, xxhdpi, and xxxhdpi.
+
+### Operational Notes
+
+- Keep mobile launcher artwork sourced from the desktop stable channel icon unless product explicitly chooses a separate mobile mark.
+- Android package identity remains unchanged; only launcher label and icon resources changed.
+
 ## 2026-04-29: Mobile Design Token Exporter
 
 ### Change
