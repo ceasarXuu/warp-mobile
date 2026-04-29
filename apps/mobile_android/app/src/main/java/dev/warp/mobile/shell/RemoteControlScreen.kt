@@ -25,7 +25,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.key
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
@@ -37,7 +36,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import dev.warp.mobile.auth.AuthBrowserLoginReasons
 import dev.warp.mobile.design.WarpButton
@@ -241,26 +239,18 @@ private fun ReadyState(
                 },
         ) {
             if (isAuthenticated) {
-                key(selectedTab.id, state.webNavigationId) {
-                    AndroidView(
-                        modifier = Modifier.fillMaxSize(),
-                        factory = { context ->
-                            RemoteSessionWebView.create(
-                                context = context,
-                                request = selectedTab.request,
-                                logger = logger,
-                                authHandoffProvider = authHandoffProvider,
-                                onAuthRequired = onSignIn,
-                            ).also {
-                                webView = it
-                            }
-                        },
-                        update = {
-                            webView = it
-                            RemoteSessionWebView.update(it, selectedTab.request, logger)
-                        },
-                    )
-                }
+                RemoteSessionWebViewHost(
+                    tab = selectedTab,
+                    webNavigationId = state.webNavigationId,
+                    logger = logger,
+                    authHandoffProvider = authHandoffProvider,
+                    onAuthRequired = onSignIn,
+                    onWebViewReady = { webView = it },
+                    onWebViewReleased = { releasedView ->
+                        if (webView === releasedView) webView = null
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
             } else {
                 NativeAuthGate(tokens)
             }

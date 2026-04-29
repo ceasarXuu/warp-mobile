@@ -24,15 +24,20 @@ Warp Mobile must not render Warp account login, OAuth provider login, or CAPTCHA
 - Never log the refresh token or state value. Logs only record event names, sanitized host names, and boolean facts.
 - WebView provider-login navigation is blocked and externalized. Google, GitHub, and related OAuth hosts should not become top-level pages inside the WebView.
 - The WebView keeps cookies, DOM storage, and WebView persistent state enabled so app session data survives process restart.
+- The token-bearing Android bridge is only installed for `https://app.warp.dev` session WebViews. Debug and local fake-session origins keep the host event bridge but never receive `WarpAndroidAuthHandoff`.
+- The document-start auth bootstrap origin set must stay exactly `https://app.warp.dev`. Do not add `debug.warp.local`, `localhost`, or `127.0.0.1` to token handoff origins.
+- When the token bridge is active, debug and local origins are blocked from WebView navigation/resource loading so a local frame cannot call the token bridge.
 - The injected JavaScript does not embed the token literal. It calls the Android bridge so token updates after browser login are visible without rebuilding the WebView.
 - `window.warpUserHandoff` is installed as an accessor. Warp Web's own bundle also assigns this symbol, so the Android accessor must accept that assignment and keep it as a fallback instead of making the property read-only.
 - The Firebase API key used by the bootstrap is the public web key from the hosted Warp bundle; it is not a secret. Do not log refresh tokens or ID tokens.
 - If `/api/v1/oauth/session` rejects the exchanged ID token with `Recent sign in required`, the WebView asks Android for a browser login with that exact reason. Native uses the fresh login route once, then suppresses repeated automatic launches if the fresh redirect still fails.
 - When native considers embedded auth unavailable, it does not create the WebView and does not show the terminal keyboard. The user sees only the native sign-in gate, so Warp login forms, OAuth pages, and CAPTCHA never appear inside the app.
 - Browser launch logs include `reason`, `force_fresh`, and suppression policy fields. These are safe operational diagnostics; tokens and state remain redacted.
+- While a browser login is pending, repeated user taps on `Sign in` are suppressed instead of overwriting `pending_state`. Stale pending logins can be deliberately replaced after the pending window and emit `mobile_auth_pending_browser_login_replaced`.
+- WebViews created by Compose must have a matching release path. On tab switches, auth reloads, and navigation id changes, the old WebView is stopped, detached from JS bridges/clients, destroyed, and logged with `mobile_webview_destroyed`.
 
 ## Test Notes
 
-- Unit tests cover login URL generation and redirect parsing.
+- Unit tests cover login URL generation, redirect parsing, pending browser-login suppression, and WebView auth-bridge origin policy.
 - Manual smoke should use a real Warp session link, install the debug APK, create a tab, complete login in the browser, and verify the selected tab reloads without showing the provider login page inside the app.
-- Useful log events: `mobile_auth_browser_login_started`, `mobile_auth_browser_login_suppressed`, `mobile_auth_redirect_accepted`, `mobile_auth_embedded_gate_changed`, `mobile_auth_handoff_reload_requested`, `mobile_auth_handoff_script_installed`, and `mobile_webview_auth_navigation_externalized`.
+- Useful log events: `mobile_auth_browser_login_started`, `mobile_auth_browser_login_suppressed`, `mobile_auth_pending_browser_login_replaced`, `mobile_auth_redirect_accepted`, `mobile_auth_embedded_gate_changed`, `mobile_auth_handoff_reload_requested`, `mobile_auth_handoff_script_installed`, `mobile_auth_handoff_bridge_exposed`, `mobile_auth_handoff_bridge_skipped`, `mobile_webview_destroyed`, and `mobile_webview_auth_navigation_externalized`.

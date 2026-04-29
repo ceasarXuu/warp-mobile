@@ -36,6 +36,7 @@ class WarpLoginBroker(context: Context) : AuthHandoffProvider {
         val normalizedReason = AuthBrowserLoginReasons.normalize(reason)
         setEmbeddedAuthGateRequired(true, logger, normalizedReason)
         val now = SystemClock.elapsedRealtime()
+        val pendingState = prefs.getString(PendingStateKey, null)
         val decision = AuthBrowserLaunchPolicy.decide(
             reason = normalizedReason,
             hasRefreshToken = tokenStore.hasRefreshToken(),
@@ -43,6 +44,8 @@ class WarpLoginBroker(context: Context) : AuthHandoffProvider {
             lastBrowserLoginStartedAtElapsedMillis = prefs.getLong(LastBrowserLoginStartedAtKey, 0L),
             lastAuthRedirectAcceptedAtElapsedMillis = prefs.getLong(LastAuthRedirectAcceptedAtKey, 0L),
             lastBrowserLoginForcedFresh = prefs.getBoolean(LastBrowserLoginForcedFreshKey, false),
+            hasPendingBrowserLogin = pendingState != null,
+            pendingBrowserLoginStartedAtElapsedMillis = prefs.getLong(PendingBrowserLoginStartedAtKey, 0L),
         )
         if (!decision.shouldStartBrowser) {
             logger.warn(
@@ -55,10 +58,20 @@ class WarpLoginBroker(context: Context) : AuthHandoffProvider {
             )
             return false
         }
+        decision.pendingReplacementReason?.let { replacementReason ->
+            logger.warn(
+                "mobile_auth_pending_browser_login_replaced",
+                mapOf(
+                    "reason" to normalizedReason,
+                    "replacement_reason" to replacementReason,
+                ),
+            )
+        }
 
         val state = generateState()
         prefs.edit()
             .putString(PendingStateKey, state)
+            .putLong(PendingBrowserLoginStartedAtKey, now)
             .putLong(LastBrowserLoginStartedAtKey, now)
             .putString(LastBrowserLoginReasonKey, normalizedReason)
             .putBoolean(LastBrowserLoginForcedFreshKey, decision.forceFreshCredential)
@@ -78,6 +91,10 @@ class WarpLoginBroker(context: Context) : AuthHandoffProvider {
                 },
             )
         } catch (_: ActivityNotFoundException) {
+            prefs.edit()
+                .remove(PendingStateKey)
+                .remove(PendingBrowserLoginStartedAtKey)
+                .apply()
             logger.warn("mobile_auth_browser_login_failed", mapOf("reason" to "no_browser"))
             return false
         }
@@ -108,6 +125,7 @@ class WarpLoginBroker(context: Context) : AuthHandoffProvider {
         val wasEmbeddedGateRequired = prefs.getBoolean(EmbeddedAuthGateRequiredKey, false)
         prefs.edit()
             .remove(PendingStateKey)
+            .remove(PendingBrowserLoginStartedAtKey)
             .putLong(LastAuthRedirectAcceptedAtKey, SystemClock.elapsedRealtime())
             .putBoolean(EmbeddedAuthGateRequiredKey, false)
             .apply()
@@ -145,6 +163,7 @@ class WarpLoginBroker(context: Context) : AuthHandoffProvider {
     private companion object {
         const val PrefsName = "warp_mobile_auth"
         const val PendingStateKey = "pending_state"
+        const val PendingBrowserLoginStartedAtKey = "pending_browser_login_started_at"
         const val LastBrowserLoginStartedAtKey = "last_browser_login_started_at"
         const val LastBrowserLoginReasonKey = "last_browser_login_reason"
         const val LastBrowserLoginForcedFreshKey = "last_browser_login_forced_fresh"

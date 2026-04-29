@@ -66,4 +66,38 @@ class AuthBrowserLaunchPolicyTest {
         assertFalse(decision.shouldStartBrowser)
         assertEquals("duplicate_launch", decision.suppressionReason)
     }
+
+    @Test
+    fun suppressesRepeatedUserLoginWhenBrowserLoginIsPending() {
+        val decision = AuthBrowserLaunchPolicy.decide(
+            reason = AuthBrowserLoginReasons.User,
+            hasRefreshToken = false,
+            nowElapsedMillis = 11_000L,
+            lastBrowserLoginStartedAtElapsedMillis = 10_000L,
+            lastAuthRedirectAcceptedAtElapsedMillis = 0L,
+            lastBrowserLoginForcedFresh = false,
+            hasPendingBrowserLogin = true,
+            pendingBrowserLoginStartedAtElapsedMillis = 10_000L,
+        )
+
+        assertFalse(decision.shouldStartBrowser)
+        assertEquals("pending_browser_login", decision.suppressionReason)
+    }
+
+    @Test
+    fun replacesStalePendingBrowserLoginDeliberately() {
+        val decision = AuthBrowserLaunchPolicy.decide(
+            reason = AuthBrowserLoginReasons.User,
+            hasRefreshToken = false,
+            nowElapsedMillis = 180_001L,
+            lastBrowserLoginStartedAtElapsedMillis = 10_000L,
+            lastAuthRedirectAcceptedAtElapsedMillis = 0L,
+            lastBrowserLoginForcedFresh = false,
+            hasPendingBrowserLogin = true,
+            pendingBrowserLoginStartedAtElapsedMillis = 10_000L,
+        )
+
+        assertTrue(decision.shouldStartBrowser)
+        assertEquals("stale_pending_browser_login", decision.pendingReplacementReason)
+    }
 }

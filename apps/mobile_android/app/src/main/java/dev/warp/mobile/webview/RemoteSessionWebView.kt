@@ -7,7 +7,6 @@ import android.net.Uri
 import android.os.Message
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
-import android.webkit.JavascriptInterface
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -23,17 +22,11 @@ import dev.warp.mobile.auth.AuthBrowserLoginReasons
 import dev.warp.mobile.keyboard.TerminalAction
 import dev.warp.mobile.observability.MobileEventLogger
 import dev.warp.mobile.session.SessionLaunchRequest
+import java.io.ByteArrayInputStream
 import java.util.concurrent.atomic.AtomicInteger
 
 object RemoteSessionWebView {
     private val sequence = AtomicInteger()
-    private val allowedSessionHosts = setOf(
-        "app.warp.dev",
-        "debug.warp.local",
-        "localhost",
-        "127.0.0.1",
-    )
-    private val allowedWarpHostSuffixes = setOf(".app.warp.dev")
     private val providerAuthHosts = setOf(
         "accounts.google.com",
         "accounts.youtube.com",
@@ -50,12 +43,6 @@ object RemoteSessionWebView {
         ".gstatic.com",
         ".googleusercontent.com",
         ".googleapis.com",
-    )
-    private val authHandoffOrigins = setOf(
-        "https://app.warp.dev",
-        "https://debug.warp.local",
-        "http://localhost",
-        "http://127.0.0.1",
     )
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -85,17 +72,24 @@ object RemoteSessionWebView {
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             addJavascriptInterface(WarpHostBridge(logger), "WarpAndroidHost")
-            addJavascriptInterface(
-                WarpAuthHandoffBridge(authHandoffProvider, logger, onAuthRequired),
-                "WarpAndroidAuthHandoff",
-            )
-            val authHandoffScript = WebViewAuthScripts.authHandoffScript()
-            val injectAuthOnPageStart = installAuthHandoffScript(authHandoffScript, logger)
-            webChromeClient = loggingChromeClient(logger, onAuthRequired)
+            val exposeTokenBridge = WebViewAuthBridgePolicy.shouldExposeTokenBridge(request)
+            if (exposeTokenBridge) {
+                addJavascriptInterface(
+                    WarpAuthHandoffBridge(authHandoffProvider, logger, onAuthRequired),
+                    "WarpAndroidAuthHandoff",
+                )
+                logger.event("mobile_auth_handoff_bridge_exposed", mapOf("origin" to "https://app.warp.dev"))
+            } else {
+                logger.event("mobile_auth_handoff_bridge_skipped", mapOf("session_id_hash" to request.sessionIdHash))
+            }
+            val authHandoffScript = if (exposeTokenBridge) WebViewAuthScripts.authHandoffScript() else null
+            val injectAuthOnPageStart = authHandoffScript?.let { installAuthHandoffScript(it, logger) } ?: false
+            webChromeClient = loggingChromeClient(logger, exposeTokenBridge, onAuthRequired)
             webViewClient = guardedWebViewClient(
                 logger = logger,
                 authHandoffScript = authHandoffScript,
                 injectAuthOnPageStart = injectAuthOnPageStart,
+                tokenBridgeExposed = exposeTokenBridge,
                 onAuthRequired = onAuthRequired,
             )
             loadRequest(request, logger)
@@ -113,13 +107,25 @@ object RemoteSessionWebView {
         webView.loadRequest(request, logger)
     }
 
+    fun destroy(webView: WebView, logger: MobileEventLogger, reason: String) {
+        val rawUrl = webView.url ?: (webView.tag as? String).orEmpty()
+        val host = runCatching { Uri.parse(rawUrl).host.orEmpty() }.getOrDefault("")
+        logger.event("mobile_webview_destroyed", mapOf("host" to host, "reason" to reason))
+        runCatching { webView.stopLoading() }
+        runCatching { webView.removeJavascriptInterface("WarpAndroidAuthHandoff") }
+        runCatching { webView.removeJavascriptInterface("WarpAndroidHost") }
+        runCatching { webView.webChromeClient = null }
+        runCatching { webView.webViewClient = WebViewClient() }
+        runCatching { webView.destroy() }
+    }
+
     fun loadAllowedUrl(webView: WebView?, rawUrl: String, logger: MobileEventLogger, reason: String) {
         if (webView == null) {
             logger.warn("mobile_webview_url_load_skipped", mapOf("reason" to "webview_not_ready"))
             return
         }
         val host = Uri.parse(rawUrl).host.orEmpty()
-        if (!isAllowedHost(host)) {
+        if (!WebViewAuthBridgePolicy.isAllowedAuthContinuationHost(host)) {
             logger.warn("mobile_webview_url_load_blocked", mapOf("host" to host, "reason" to reason))
             return
         }
@@ -164,7 +170,11 @@ object RemoteSessionWebView {
         }
     }
 
-    private fun loggingChromeClient(logger: MobileEventLogger, onAuthRequired: (String) -> Unit): WebChromeClient {
+    private fun loggingChromeClient(
+        logger: MobileEventLogger,
+        tokenBridgeExposed: Boolean,
+        onAuthRequired: (String) -> Unit,
+    ): WebChromeClient {
         return object : WebChromeClient() {
             override fun onCreateWindow(
                 view: WebView,
@@ -186,7 +196,7 @@ object RemoteSessionWebView {
                     settings.javaScriptCanOpenWindowsAutomatically = true
                     settings.setSupportMultipleWindows(false)
                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                    webViewClient = popupRedirectClient(view, logger, onAuthRequired)
+                    webViewClient = popupRedirectClient(view, logger, tokenBridgeExposed, onAuthRequired)
                 }
                 val transport = resultMsg.obj as WebView.WebViewTransport
                 transport.webView = popupView
@@ -212,16 +222,17 @@ object RemoteSessionWebView {
     private fun popupRedirectClient(
         targetView: WebView,
         logger: MobileEventLogger,
+        tokenBridgeExposed: Boolean,
         onAuthRequired: (String) -> Unit,
     ): WebViewClient {
         return object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                return redirectPopup(targetView, request.url, logger, onAuthRequired)
+                return redirectPopup(targetView, request.url, logger, tokenBridgeExposed, onAuthRequired)
             }
 
             override fun onPageFinished(view: WebView, url: String) {
                 val uri = Uri.parse(url)
-                if (redirectPopup(targetView, uri, logger, onAuthRequired)) {
+                if (redirectPopup(targetView, uri, logger, tokenBridgeExposed, onAuthRequired)) {
                     view.destroy()
                 }
             }
@@ -232,6 +243,7 @@ object RemoteSessionWebView {
         targetView: WebView,
         uri: Uri,
         logger: MobileEventLogger,
+        tokenBridgeExposed: Boolean,
         onAuthRequired: (String) -> Unit,
     ): Boolean {
         val url = uri.toString()
@@ -244,7 +256,7 @@ object RemoteSessionWebView {
             onAuthRequired(AuthBrowserLoginReasons.WebViewAuthPopup)
             return true
         }
-        if (!isAllowedHost(host)) {
+        if (!WebViewAuthBridgePolicy.isAllowedNavigationHost(host, tokenBridgeExposed)) {
             logger.warn("mobile_webview_popup_url_blocked", mapOf("host" to host))
             return true
         }
@@ -255,8 +267,9 @@ object RemoteSessionWebView {
 
     private fun guardedWebViewClient(
         logger: MobileEventLogger,
-        authHandoffScript: String,
+        authHandoffScript: String?,
         injectAuthOnPageStart: Boolean,
+        tokenBridgeExposed: Boolean,
         onAuthRequired: (String) -> Unit,
     ): WebViewClient {
         return object : WebViewClient() {
@@ -264,7 +277,11 @@ object RemoteSessionWebView {
                 val uri = Uri.parse(url)
                 val host = uri.host.orEmpty()
                 logger.event("mobile_webview_page_started", mapOf("host" to host, "path" to uri.path.orEmpty().take(96)))
-                if (injectAuthOnPageStart && isAllowedHost(host)) {
+                if (
+                    authHandoffScript != null &&
+                    injectAuthOnPageStart &&
+                    WebViewAuthBridgePolicy.shouldInjectAuthHandoff(host, tokenBridgeExposed)
+                ) {
                     view.evaluateJavascript(authHandoffScript, null)
                     logger.event("mobile_auth_handoff_script_injected", mapOf("mode" to "page_started"))
                 }
@@ -277,7 +294,7 @@ object RemoteSessionWebView {
                     onAuthRequired(AuthBrowserLoginReasons.WebViewAuthNavigation)
                     return true
                 }
-                val allowed = isAllowedHost(host)
+                val allowed = WebViewAuthBridgePolicy.isAllowedNavigationHost(host, tokenBridgeExposed)
                 if (!allowed) {
                     logger.warn(
                         "mobile_webview_external_url_blocked",
@@ -288,6 +305,18 @@ object RemoteSessionWebView {
                     )
                 }
                 return !allowed
+            }
+
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                val host = request.url.host.orEmpty()
+                if (tokenBridgeExposed && WebViewAuthBridgePolicy.isDebugOrLocalHost(host)) {
+                    logger.warn(
+                        "mobile_webview_debug_origin_blocked",
+                        mapOf("host" to host, "is_main_frame" to request.isForMainFrame.toString()),
+                    )
+                    return emptyBlockedResponse()
+                }
+                return null
             }
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
@@ -332,11 +361,6 @@ object RemoteSessionWebView {
         }
     }
 
-    private fun isAllowedHost(host: String): Boolean {
-        return host in allowedSessionHosts ||
-            allowedWarpHostSuffixes.any { suffix -> host.endsWith(suffix) }
-    }
-
     private fun isAuthNavigation(uri: Uri): Boolean {
         val host = uri.host.orEmpty()
         val path = uri.path.orEmpty()
@@ -349,13 +373,24 @@ object RemoteSessionWebView {
             providerAuthHostSuffixes.any { suffix -> host.endsWith(suffix) }
     }
 
+    private fun emptyBlockedResponse(): WebResourceResponse {
+        return WebResourceResponse(
+            "text/plain",
+            "UTF-8",
+            403,
+            "Forbidden",
+            emptyMap(),
+            ByteArrayInputStream(ByteArray(0)),
+        )
+    }
+
     private fun WebView.installAuthHandoffScript(script: String, logger: MobileEventLogger): Boolean {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             logger.warn("mobile_auth_handoff_document_start_unavailable")
             return true
         }
         return try {
-            WebViewCompat.addDocumentStartJavaScript(this, script, authHandoffOrigins)
+            WebViewCompat.addDocumentStartJavaScript(this, script, WebViewAuthBridgePolicy.authHandoffOrigins)
             logger.event("mobile_auth_handoff_script_installed", mapOf("mode" to "document_start"))
             false
         } catch (_: RuntimeException) {

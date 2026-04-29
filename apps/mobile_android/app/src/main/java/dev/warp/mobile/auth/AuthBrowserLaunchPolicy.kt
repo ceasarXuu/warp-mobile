@@ -14,11 +14,13 @@ data class AuthBrowserLaunchDecision(
     val shouldStartBrowser: Boolean,
     val forceFreshCredential: Boolean,
     val suppressionReason: String? = null,
+    val pendingReplacementReason: String? = null,
 )
 
 object AuthBrowserLaunchPolicy {
     const val DuplicateLaunchWindowMs = 2_000L
     const val FreshRedirectLoopWindowMs = 60_000L
+    const val PendingBrowserLoginWindowMs = 120_000L
 
     fun decide(
         reason: String,
@@ -27,9 +29,25 @@ object AuthBrowserLaunchPolicy {
         lastBrowserLoginStartedAtElapsedMillis: Long,
         lastAuthRedirectAcceptedAtElapsedMillis: Long,
         lastBrowserLoginForcedFresh: Boolean,
+        hasPendingBrowserLogin: Boolean = false,
+        pendingBrowserLoginStartedAtElapsedMillis: Long = 0L,
     ): AuthBrowserLaunchDecision {
         val normalizedReason = AuthBrowserLoginReasons.normalize(reason)
         val forceFreshCredential = shouldForceFreshCredential(normalizedReason, hasRefreshToken)
+        val pendingLoginStillActive = hasPendingBrowserLogin &&
+            isWithinWindow(nowElapsedMillis, pendingBrowserLoginStartedAtElapsedMillis, PendingBrowserLoginWindowMs)
+        if (pendingLoginStillActive) {
+            return AuthBrowserLaunchDecision(
+                shouldStartBrowser = false,
+                forceFreshCredential = forceFreshCredential,
+                suppressionReason = "pending_browser_login",
+            )
+        }
+        val pendingReplacementReason = if (hasPendingBrowserLogin) {
+            "stale_pending_browser_login"
+        } else {
+            null
+        }
 
         if (
             normalizedReason != AuthBrowserLoginReasons.User &&
@@ -57,6 +75,7 @@ object AuthBrowserLaunchPolicy {
         return AuthBrowserLaunchDecision(
             shouldStartBrowser = true,
             forceFreshCredential = forceFreshCredential,
+            pendingReplacementReason = pendingReplacementReason,
         )
     }
 
