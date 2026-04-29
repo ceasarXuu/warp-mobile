@@ -20,6 +20,7 @@ Warp Mobile must not render Warp account login, OAuth provider login, or CAPTCHA
 ## Guardrails
 
 - Do not add broad `https://app.warp.dev` intent filters. They can trap the browser login URL back inside the app.
+- Register the desktop auth schemes that hosted Warp may emit (`warp`, `warpbeta`, `warpcanary`, `warppreview`, `openwarp`, and `warposs`) only for `/auth/desktop_redirect`. Some hosted fallback pages default to `warp://...` even though Android starts login with `scheme=warposs`.
 - Never log the refresh token or state value. Logs only record event names, sanitized host names, and boolean facts.
 - WebView provider-login navigation is blocked and externalized. Google, GitHub, and related OAuth hosts should not become top-level pages inside the WebView.
 - The WebView keeps cookies, DOM storage, and WebView persistent state enabled so app session data survives process restart.

@@ -85,7 +85,7 @@ class WarpLoginBroker(context: Context) : AuthHandoffProvider {
     }
 
     fun isAuthRedirect(uri: Uri): Boolean {
-        return uri.scheme == WarpAuthRedirectParser.RedirectScheme &&
+        return uri.scheme in WarpAuthRedirectParser.SupportedRedirectSchemes &&
             uri.host == WarpAuthRedirectParser.RedirectHost &&
             uri.path == WarpAuthRedirectParser.RedirectPath
     }

@@ -35,6 +35,16 @@ class WarpAuthRedirectParserTest {
     }
 
     @Test
+    fun parsesHostedFallbackWarpSchemeRedirect() {
+        val redirect = WarpAuthRedirectParser.parse(
+            "warp://auth/desktop_redirect?refresh_token=token-value&state=pending",
+        )
+
+        assertEquals("token-value", redirect.refreshToken)
+        assertEquals("pending", redirect.state)
+    }
+
+    @Test
     fun rejectsMissingRefreshToken() {
         val error = runCatching {
             WarpAuthRedirectParser.parse("warposs://auth/desktop_redirect?state=pending")

@@ -18,6 +18,7 @@ object WarpAuthRedirectParser {
     const val RedirectScheme = "warposs"
     const val RedirectHost = "auth"
     const val RedirectPath = "/desktop_redirect"
+    val SupportedRedirectSchemes = setOf("warp", "warpbeta", "warpcanary", "warppreview", "openwarp", RedirectScheme)
     private const val LoginBaseUrl = "https://app.warp.dev/login/remote"
     private const val FreshLoginBaseUrl = "https://app.warp.dev/login_options/remote"
 
@@ -35,7 +36,7 @@ object WarpAuthRedirectParser {
 
         val scheme = uri.scheme?.lowercase(Locale.US)
             ?: throw WarpAuthRedirectException("unsupported_scheme")
-        if (scheme != RedirectScheme) throw WarpAuthRedirectException("unsupported_scheme")
+        if (scheme !in SupportedRedirectSchemes) throw WarpAuthRedirectException("unsupported_scheme")
         if (uri.host != RedirectHost) throw WarpAuthRedirectException("unsupported_host")
         if (uri.path != RedirectPath) throw WarpAuthRedirectException("unsupported_path")
 

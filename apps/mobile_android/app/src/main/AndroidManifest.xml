@@ -35,6 +35,26 @@
                 <data
                     android:host="auth"
                     android:pathPrefix="/desktop_redirect"
+                    android:scheme="warp" />
+                <data
+                    android:host="auth"
+                    android:pathPrefix="/desktop_redirect"
+                    android:scheme="warpbeta" />
+                <data
+                    android:host="auth"
+                    android:pathPrefix="/desktop_redirect"
+                    android:scheme="warpcanary" />
+                <data
+                    android:host="auth"
+                    android:pathPrefix="/desktop_redirect"
+                    android:scheme="warppreview" />
+                <data
+                    android:host="auth"
+                    android:pathPrefix="/desktop_redirect"
+                    android:scheme="openwarp" />
+                <data
+                    android:host="auth"
+                    android:pathPrefix="/desktop_redirect"
                     android:scheme="warposs" />
             </intent-filter>
         </activity>

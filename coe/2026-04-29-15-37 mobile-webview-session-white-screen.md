@@ -1,7 +1,7 @@
 # Problem P-001: Mobile WebView session white screen after login
 - Status: open
 - Created: 2026-04-29 15:37
-- Updated: 2026-04-29 18:49
+- Updated: 2026-04-29 19:05
 - Objective: Make a valid Warp remote session URL render in the Android embedded WebView after browser login.
 - Symptoms:
   - User reports browser login appears to succeed.
@@ -26,15 +26,18 @@
   - A browser redirect accepted immediately before a `Recent sign in required` failure can repeat, causing Android to reopen the browser in a loop.
   - Hosted Warp Web's normal `/login/remote` route can redirect an already logged-in browser user to `/logged_in/remote` without forcing a fresh provider login; `/login_options/remote` goes through the hosted login-options route, which logs out a current non-anonymous browser user before provider sign-in.
   - The Android fix now opens a force-fresh browser login on the first `Recent sign in required` failure, gates the embedded WebView natively, and does not auto-launch the browser after a process restart when a refresh token already exists.
+  - The installed app resolves `warposs://auth/desktop_redirect...`, but did not resolve `warp://auth/desktop_redirect...`; hosted Warp's redirect helper defaults to `warp` when the `scheme` query param is missing.
+  - After the fix, Android resolves `warp://auth/desktop_redirect...` to the app and `WarpLoginBroker` routes it through auth redirect handling instead of session-link parsing.
 - Ruled out:
   - none
 - Fix criteria:
   - The provided valid session URL renders inside Android WebView on the connected device after a browser login or required reauthentication.
-- Current conclusion: The original white screen is fixed by making `warpUserHandoff` assignable. The login loop now has a native reentry fix under validation: stale browser-redirect tokens trigger one fresh browser login, while embedded auth remains behind a native gate instead of rendering Web login UI.
+- Current conclusion: The original white screen is fixed by making `warpUserHandoff` assignable. The login handoff must support both the Android-specific `warposs` scheme and hosted Warp's default desktop `warp` scheme because browser fallback pages can emit either.
 - Related hypotheses:
   - H-001
   - H-002
   - H-003
+  - H-004
 - Resolution basis:
   - not satisfied
 - Close reason:
@@ -109,6 +112,31 @@
   - E-005
 - Conclusion: Confirmed by device logs showing the exact redirect-failure-reopen cycle and by hosted bundle code showing `/login/remote` can proceed to `/logged_in/remote` for an already logged-in browser user. The native reentry policy has build and smoke validation, with full resolution still waiting on a completed fresh browser login redirect from the user.
 - Next step: User completes the fresh browser login, then verify the app accepts the redirect and the session page renders without reopening the browser.
+- Blocker:
+  - none
+- Close reason:
+  - not closed
+
+## Hypothesis H-004: Hosted fallback uses an unregistered desktop scheme
+- Status: confirmed
+- Parent: P-001
+- Claim: The browser `Take me to Warp` button can fail to launch Android because the hosted page emits `warp://auth/desktop_redirect...`, while Android only registered and parsed `warposs://auth/desktop_redirect...`.
+- Layer: interaction
+- Factor relation: single
+- Depends on:
+  - H-003
+- Rationale:
+  - The user reports that clicking `Take me to Warp` after browser login does not open the app, and the hosted bundle has multiple desktop-scheme redirect paths.
+- Falsifiable predictions:
+  - If true: Android resolves `warposs://auth/desktop_redirect...` but not `warp://auth/desktop_redirect...`, and hosted code defaults to `warp` if `scheme` is absent.
+  - If false: Android should already resolve `warp://...`, or hosted code should never emit that scheme for this flow.
+- Verification plan:
+  - Query Android activity resolution for both schemes and inspect hosted redirect helper code.
+- Related evidence:
+  - E-006
+  - E-007
+- Conclusion: Confirmed by device resolver output and hosted bundle code. Fixed by registering and parsing hosted desktop redirect schemes for the same `/auth/desktop_redirect` path, keeping pending-state validation unchanged.
+- Next step: Validate with the user's real browser `Take me to Warp` click after a fresh login.
 - Blocker:
   - none
 - Close reason:
@@ -214,3 +242,46 @@
   ```
 - Interpretation: The implemented state machine chooses the fresh hosted login route for a stale token, hides embedded Web login UI behind native chrome, and avoids automatic browser relaunch after process restart when a refresh token already exists.
 - Time: 2026-04-29 18:49
+
+## Evidence E-006: Android only resolves warposs while hosted can default to warp
+- Related hypotheses:
+  - H-004
+- Direction: supports
+- Type: experiment
+- Source: `adb shell cmd package resolve-activity --brief ...`; hosted `https://app.warp.dev/static/js/index.js`
+- Raw content:
+  ```text
+  warposs://auth/desktop_redirect?refresh_token=x&state=y
+  -> dev.warp.mobile.debug/dev.warp.mobile.MainActivity
+
+  warp://auth/desktop_redirect?refresh_token=x&state=y
+  -> No activity found
+
+  Hosted helper:
+  function V0(e){return(`warp,warpbeta,warpcanary,warppreview,openwarp,warposs`.split(`,`).includes(e)?e:`warp`).trim()}
+  function H0(e,t){return`${V0(e.get(`scheme`)||``)}://auth/desktop_redirect?...`}
+  ```
+- Interpretation: If the browser page loses the `scheme=warposs` query parameter or uses a fallback route, `Take me to Warp` can generate `warp://...`, which Android previously did not handle.
+- Time: 2026-04-29 19:04
+
+## Evidence E-007: Android accepts hosted fallback warp scheme after fix
+- Related hypotheses:
+  - H-004
+- Direction: supports
+- Type: fix-validation
+- Source: Gradle build/tests, APK install, Android resolver, and `adb shell am start` on device `ONNZ95CAEMMZSKTS`
+- Raw content:
+  ```text
+  Gradle: compileDebugKotlin testDebugUnitTest assembleDebug BUILD SUCCESSFUL
+  adb install -r app-debug.apk: Success
+
+  resolve-activity warp://auth/desktop_redirect?refresh_token=x&state=y
+  -> dev.warp.mobile.debug/dev.warp.mobile.MainActivity
+
+  adb shell am start ... warp://auth/desktop_redirect?refresh_token=x&state=y
+  mobile_shell_created
+  mobile_auth_redirect_rejected reason=state_mismatch
+  mobile_tab_store_loaded tab_count=10
+  ```
+- Interpretation: The fallback `warp://` scheme now launches the app and reaches auth redirect handling. The expected fake-state rejection proves pending-state validation still protects the token handoff.
+- Time: 2026-04-29 19:05
