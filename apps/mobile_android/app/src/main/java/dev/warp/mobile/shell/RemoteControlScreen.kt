@@ -56,6 +56,7 @@ fun RemoteControlScreen(
     onRetry: () -> Unit,
     onCreateTab: (String) -> String?,
     onSelectTab: (String) -> Unit,
+    onCloseTab: (String) -> Unit,
     isAuthenticated: Boolean,
     authHandoffProvider: AuthHandoffProvider,
     onSignIn: () -> Unit,
@@ -76,6 +77,7 @@ fun RemoteControlScreen(
             authHandoffProvider = authHandoffProvider,
             onCreateTab = { showCreateDialog = true },
             onSelectTab = onSelectTab,
+            onCloseTab = onCloseTab,
             onSignIn = onSignIn,
         )
     }
@@ -161,6 +163,7 @@ private fun ReadyState(
     authHandoffProvider: AuthHandoffProvider,
     onCreateTab: () -> Unit,
     onSelectTab: (String) -> Unit,
+    onCloseTab: (String) -> Unit,
     onSignIn: () -> Unit,
 ) {
     var webView by remember { mutableStateOf<WebView?>(null) }
@@ -212,6 +215,7 @@ private fun ReadyState(
             tabs = state.tabs,
             selectedTabId = selectedTab.id,
             onSelectTab = onSelectTab,
+            onCloseTab = onCloseTab,
             onCreateTab = onCreateTab,
         )
         if (!isAuthenticated) {
@@ -296,6 +300,7 @@ private fun RemoteTabStrip(
     tabs: List<RemoteTab>,
     selectedTabId: String,
     onSelectTab: (String) -> Unit,
+    onCloseTab: (String) -> Unit,
     onCreateTab: () -> Unit,
 ) {
     Row(
@@ -313,6 +318,7 @@ private fun RemoteTabStrip(
                 label = "${index + 1} ${tab.label}",
                 selected = tab.id == selectedTabId,
                 onClick = { onSelectTab(tab.id) },
+                onClose = { onCloseTab(tab.id) },
             )
         }
         WarpButton(
@@ -331,18 +337,34 @@ private fun RemoteTabPill(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    onClose: () -> Unit,
 ) {
     val shape = RoundedCornerShape(6.dp)
-    Box(
+    Row(
         modifier = Modifier
             .clip(shape)
             .background(if (selected) tokens.surface3 else tokens.surface2)
-            .border(1.dp, if (selected) tokens.accent else tokens.outline, shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center,
+            .border(1.dp, if (selected) tokens.accent else tokens.outline, shape),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = label, color = if (selected) tokens.activeText else tokens.nonactiveText, fontSize = 13.sp)
+        Box(
+            modifier = Modifier
+                .clickable(onClick = onClick)
+                .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text = label, color = if (selected) tokens.activeText else tokens.nonactiveText, fontSize = 13.sp)
+        }
+        Box(
+            modifier = Modifier
+                .padding(end = 6.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .clickable(onClick = onClose)
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text = "x", color = tokens.nonactiveText, fontSize = 13.sp)
+        }
     }
 }
 

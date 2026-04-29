@@ -13,6 +13,7 @@ import dev.warp.mobile.session.SessionLinkParseException
 import dev.warp.mobile.session.SessionLinkParser
 import dev.warp.mobile.shell.RemoteControlScreen
 import dev.warp.mobile.shell.RemoteScreenState
+import dev.warp.mobile.tabs.RemoteTabCloser
 import dev.warp.mobile.tabs.RemoteTab
 import dev.warp.mobile.tabs.RemoteTabSnapshot
 import dev.warp.mobile.tabs.RemoteTabStore
@@ -41,6 +42,7 @@ class MainActivity : ComponentActivity() {
                 onRetry = { resolveLaunch(intent, LaunchSource.RETRY) },
                 onCreateTab = { rawUrl -> createTab(rawUrl, LaunchSource.USER_CREATED) },
                 onSelectTab = { tabId -> selectTab(tabId) },
+                onCloseTab = { tabId -> closeTab(tabId) },
                 isAuthenticated = isAuthenticated.value,
                 authHandoffProvider = authBroker,
                 onSignIn = { beginBrowserLogin() },
@@ -198,6 +200,32 @@ class MainActivity : ComponentActivity() {
         tabStore.save(snapshot, logger)
         logger.event("mobile_tab_selected", mapOf("tab_id" to tabId))
         screenState.value = ready.copy(selectedTabId = tabId, pendingWebUrl = null)
+    }
+
+    private fun closeTab(tabId: String) {
+        val ready = screenState.value as? RemoteScreenState.Ready ?: return
+        val closingSelectedTab = ready.selectedTabId == tabId
+        val nextSnapshot = RemoteTabCloser.close(RemoteTabSnapshot(ready.tabs, ready.selectedTabId), tabId) ?: return
+        tabStore.save(nextSnapshot, logger)
+        logger.event(
+            "mobile_tab_closed",
+            mapOf(
+                "tab_id" to tabId,
+                "closed_selected_tab" to closingSelectedTab.toString(),
+                "remaining_count" to nextSnapshot.tabs.size.toString(),
+            ),
+        )
+        val nextSelectedTabId = nextSnapshot.selectedTabId
+        if (nextSnapshot.tabs.isEmpty() || nextSelectedTabId == null) {
+            logger.event("mobile_tab_welcome_shown")
+            screenState.value = RemoteScreenState.Welcome
+            return
+        }
+        screenState.value = RemoteScreenState.Ready(
+            tabs = nextSnapshot.tabs,
+            selectedTabId = nextSelectedTabId,
+            webNavigationId = if (closingSelectedTab) System.currentTimeMillis() else ready.webNavigationId,
+        )
     }
 
     private fun isWarpWebContinuation(rawUrl: String): Boolean {
