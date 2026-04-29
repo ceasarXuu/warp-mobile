@@ -41,8 +41,21 @@ class RemoteTabStore(context: Context) {
         }
         val selectedTabId = stored.selectedTabId?.takeIf { id -> restoredTabs.any { it.id == id } }
             ?: restoredTabs.firstOrNull()?.id
-        logger.event("mobile_tab_store_loaded", mapOf("tab_count" to restoredTabs.size.toString()))
-        return RemoteTabSnapshot(restoredTabs, selectedTabId)
+        val snapshot = RemoteTabSnapshot(restoredTabs, selectedTabId)
+        val dedupedSnapshot = RemoteTabDeduplicator.collapse(snapshot)
+        val duplicateCount = restoredTabs.size - dedupedSnapshot.tabs.size
+        if (duplicateCount > 0) {
+            logger.event(
+                "mobile_tab_restore_deduplicated",
+                mapOf(
+                    "dropped_count" to duplicateCount.toString(),
+                    "tab_count" to dedupedSnapshot.tabs.size.toString(),
+                ),
+            )
+            save(dedupedSnapshot, logger)
+        }
+        logger.event("mobile_tab_store_loaded", mapOf("tab_count" to dedupedSnapshot.tabs.size.toString()))
+        return dedupedSnapshot
     }
 
     fun save(snapshot: RemoteTabSnapshot, logger: MobileEventLogger) {

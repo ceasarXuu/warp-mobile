@@ -15,6 +15,7 @@ import dev.warp.mobile.session.SessionLinkParser
 import dev.warp.mobile.shell.RemoteControlScreen
 import dev.warp.mobile.shell.RemoteScreenState
 import dev.warp.mobile.tabs.RemoteTabCloser
+import dev.warp.mobile.tabs.RemoteTabDeduplicator
 import dev.warp.mobile.tabs.RemoteTab
 import dev.warp.mobile.tabs.RemoteTabSnapshot
 import dev.warp.mobile.tabs.RemoteTabStore
@@ -161,6 +162,21 @@ class MainActivity : ComponentActivity() {
         try {
             val request = SessionLinkParser.parse(rawUrl, source)
             val currentTabs = currentTabsForCreate()
+            val existingTab = RemoteTabDeduplicator.findExistingTab(currentTabs, request)
+            if (existingTab != null) {
+                val snapshot = RemoteTabSnapshot(currentTabs, existingTab.id)
+                tabStore.save(snapshot, logger)
+                logger.event(
+                    "mobile_tab_create_deduplicated",
+                    mapOf(
+                        "source" to source.name,
+                        "tab_id" to existingTab.id,
+                        "session_id_hash" to request.sessionIdHash,
+                    ),
+                )
+                screenState.value = RemoteScreenState.Ready(currentTabs, existingTab.id)
+                return null
+            }
             val tab = RemoteTab(
                 id = UUID.randomUUID().toString(),
                 request = request,
