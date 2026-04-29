@@ -19,9 +19,11 @@ object WarpAuthRedirectParser {
     const val RedirectHost = "auth"
     const val RedirectPath = "/desktop_redirect"
     private const val LoginBaseUrl = "https://app.warp.dev/login/remote"
+    private const val FreshLoginBaseUrl = "https://app.warp.dev/login_options/remote"
 
-    fun buildLoginUrl(state: String): String {
-        return "$LoginBaseUrl?scheme=${RedirectScheme.encodeQuery()}&state=${state.encodeQuery()}"
+    fun buildLoginUrl(state: String, forceFreshCredential: Boolean = false): String {
+        val baseUrl = if (forceFreshCredential) FreshLoginBaseUrl else LoginBaseUrl
+        return "$baseUrl?scheme=${RedirectScheme.encodeQuery()}&state=${state.encodeQuery()}"
     }
 
     fun parse(rawUrl: String): WarpAuthRedirect {

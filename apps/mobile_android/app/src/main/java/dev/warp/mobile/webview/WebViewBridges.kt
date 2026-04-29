@@ -16,7 +16,7 @@ class WarpHostBridge(private val logger: MobileEventLogger) {
 class WarpAuthHandoffBridge(
     private val provider: AuthHandoffProvider,
     private val logger: MobileEventLogger,
-    private val onAuthRequired: () -> Unit,
+    private val onAuthRequired: (String) -> Unit,
 ) {
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -35,7 +35,8 @@ class WarpAuthHandoffBridge(
 
     @JavascriptInterface
     fun requestBrowserLogin(reason: String) {
-        logger.warn("mobile_auth_handoff_browser_login_requested", mapOf("reason" to reason.take(80)))
-        mainHandler.post { onAuthRequired() }
+        val normalizedReason = reason.take(80).ifBlank { "webview_auth_navigation" }
+        logger.warn("mobile_auth_handoff_browser_login_requested", mapOf("reason" to normalizedReason))
+        mainHandler.post { onAuthRequired(normalizedReason) }
     }
 }

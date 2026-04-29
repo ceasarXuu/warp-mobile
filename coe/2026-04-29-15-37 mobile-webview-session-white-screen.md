@@ -1,7 +1,7 @@
 # Problem P-001: Mobile WebView session white screen after login
 - Status: open
 - Created: 2026-04-29 15:37
-- Updated: 2026-04-29 16:01
+- Updated: 2026-04-29 18:49
 - Objective: Make a valid Warp remote session URL render in the Android embedded WebView after browser login.
 - Symptoms:
   - User reports browser login appears to succeed.
@@ -23,14 +23,18 @@
   - The blocking console error is `Cannot assign to read only property 'warpUserHandoff'`; hosted Warp Web assigns `window.warpUserHandoff` inside its own bundle.
   - After the read-only property fix, the WebView renders the Warp login page instead of staying white.
   - The Android bootstrap can exchange the stored refresh token with Firebase Secure Token, but `/api/v1/oauth/session` rejects the resulting ID token with `Recent sign in required`.
+  - A browser redirect accepted immediately before a `Recent sign in required` failure can repeat, causing Android to reopen the browser in a loop.
+  - Hosted Warp Web's normal `/login/remote` route can redirect an already logged-in browser user to `/logged_in/remote` without forcing a fresh provider login; `/login_options/remote` goes through the hosted login-options route, which logs out a current non-anonymous browser user before provider sign-in.
+  - The Android fix now opens a force-fresh browser login on the first `Recent sign in required` failure, gates the embedded WebView natively, and does not auto-launch the browser after a process restart when a refresh token already exists.
 - Ruled out:
   - none
 - Fix criteria:
   - The provided valid session URL renders inside Android WebView on the connected device after a browser login or required reauthentication.
-- Current conclusion: The original white screen is fixed by making `warpUserHandoff` assignable. The remaining login page is an authentication freshness problem: Warp's web session endpoint requires a recent sign-in, so stale browser-redirect tokens must trigger browser reauthentication.
+- Current conclusion: The original white screen is fixed by making `warpUserHandoff` assignable. The login loop now has a native reentry fix under validation: stale browser-redirect tokens trigger one fresh browser login, while embedded auth remains behind a native gate instead of rendering Web login UI.
 - Related hypotheses:
   - H-001
   - H-002
+  - H-003
 - Resolution basis:
   - not satisfied
 - Close reason:
@@ -80,6 +84,31 @@
   - E-002
 - Conclusion: Confirmed by the detailed console message and hosted bundle code; the property shape must permit assignment while preserving Android token handoff.
 - Next step: validate the accessor-based handoff script on the device.
+- Blocker:
+  - none
+- Close reason:
+  - not closed
+
+## Hypothesis H-003: Browser login reentry lacks a native fresh-auth state machine
+- Status: confirmed
+- Parent: P-001
+- Claim: The loop happens because Android treats every WebView `recent_sign_in_required` callback as permission to open `/login/remote` again, even immediately after a browser redirect; the hosted route can return the existing browser user's token without forcing fresh provider login.
+- Layer: root-cause
+- Factor relation: all_of
+- Depends on:
+  - H-002
+- Rationale:
+  - The user reports a browser/App loop after a successful browser redirect, and previous evidence shows `/api/v1/oauth/session` requires recent sign-in.
+- Falsifiable predictions:
+  - If true: logs should show repeated `mobile_auth_redirect_accepted`, `/api/v1/oauth/session` 401 `Recent sign in required`, and `mobile_auth_browser_login_started` cycles.
+  - If false: the callback should not repeat after redirects, or browser reentry should use a route that guarantees fresh sign-in.
+- Verification plan:
+  - Inspect device logs around the reported loop and inspect hosted Warp Web route behavior for `/login/remote` and `/login_options/remote`.
+- Related evidence:
+  - E-004
+  - E-005
+- Conclusion: Confirmed by device logs showing the exact redirect-failure-reopen cycle and by hosted bundle code showing `/login/remote` can proceed to `/logged_in/remote` for an already logged-in browser user. The native reentry policy has build and smoke validation, with full resolution still waiting on a completed fresh browser login redirect from the user.
+- Next step: User completes the fresh browser login, then verify the app accepts the redirect and the session page renders without reopening the browser.
 - Blocker:
   - none
 - Close reason:
@@ -137,3 +166,51 @@
   ```
 - Interpretation: The stored token is structurally valid enough to exchange with Firebase, but Warp's hosted session endpoint refuses it for not being a recent sign-in. Android must open browser reauth rather than keeping the login form in WebView.
 - Time: 2026-04-29 16:00
+
+## Evidence E-004: Device logs show redirect and recent-sign-in browser reopen cycle
+- Related hypotheses:
+  - H-003
+- Direction: supports
+- Type: log
+- Source: `adb logcat -d -v time WarpMobile:I chromium:W cr_Console:V AndroidRuntime:E *:S` on device `ONNZ95CAEMMZSKTS`; hosted `https://app.warp.dev/static/js/index.js`
+- Raw content:
+  ```text
+  04-29 18:36:01.814 mobile_auth_redirect_accepted user_uid_present=true
+  04-29 18:36:03.158 mobile_webview_http_error path=/api/v1/oauth/session status=401
+  04-29 18:36:03.159 Warp Android auth bootstrap session failed 401 {"error":"Recent sign in required"}
+  04-29 18:36:03.160 mobile_auth_handoff_browser_login_requested reason=recent_sign_in_required
+  04-29 18:36:03.160 mobile_auth_browser_login_started
+  04-29 18:36:06.254 mobile_auth_redirect_accepted user_uid_present=true
+  04-29 18:36:07.622 mobile_webview_http_error path=/api/v1/oauth/session status=401
+  04-29 18:36:07.626 mobile_auth_browser_login_started
+
+  Hosted bundle route findings:
+  - `/login/remote` is handled by the login route and can navigate to `/logged_in/remote?...` when a non-anonymous browser user already exists.
+  - `/login_options/remote` is handled by the login-options route, which logs out a current non-anonymous browser user before showing login options.
+  ```
+- Interpretation: The loop is not a WebView rendering issue. Android needs a native browser-auth state machine with a fresh-login mode and a post-fresh-redirect loop breaker.
+- Time: 2026-04-29 18:46
+
+## Evidence E-005: Native auth gate and fresh-browser path smoke validated on device
+- Related hypotheses:
+  - H-003
+- Direction: supports
+- Type: fix-validation
+- Source: Gradle build/tests, APK install, `adb logcat`, and screenshots under `apps/mobile_android/build/verification/`
+- Raw content:
+  ```text
+  Gradle: compileDebugKotlin testDebugUnitTest assembleDebug BUILD SUCCESSFUL
+  adb install -r app-debug.apk: Success
+
+  04-29 18:46:32.111 mobile_auth_embedded_gate_changed required=true reason=recent_sign_in_required
+  04-29 18:46:32.112 mobile_auth_browser_login_started force_fresh=true reason=recent_sign_in_required
+
+  After force-stop and relaunch:
+  04-29 18:48:34.168 mobile_shell_created
+  04-29 18:48:34.210 mobile_tab_store_loaded tab_count=14
+  No mobile_auth_browser_login_started event was emitted after relaunch.
+
+  Screenshot `auth-gate-smoke-2.png` shows the tab strip plus native sign-in gate, with no Web login page and no terminal keyboard.
+  ```
+- Interpretation: The implemented state machine chooses the fresh hosted login route for a stale token, hides embedded Web login UI behind native chrome, and avoids automatic browser relaunch after process restart when a refresh token already exists.
+- Time: 2026-04-29 18:49

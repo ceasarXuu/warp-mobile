@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
+import dev.warp.mobile.auth.AuthBrowserLoginReasons
 import dev.warp.mobile.auth.WarpLoginBroker
 import dev.warp.mobile.observability.MobileEventLogger
 import dev.warp.mobile.session.LaunchSource
@@ -24,6 +25,7 @@ class MainActivity : ComponentActivity() {
     private val logger = MobileEventLogger("WarpMobile")
     private val screenState = mutableStateOf<RemoteScreenState>(RemoteScreenState.Loading)
     private val isAuthenticated = mutableStateOf(false)
+    private val hasRefreshToken = mutableStateOf(false)
     private lateinit var tabStore: RemoteTabStore
     private lateinit var authBroker: WarpLoginBroker
 
@@ -31,7 +33,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         tabStore = RemoteTabStore(this)
         authBroker = WarpLoginBroker(this)
-        isAuthenticated.value = authBroker.hasRefreshToken()
+        refreshAuthState()
         logger.event("mobile_shell_created")
         resolveLaunch(intent, LaunchSource.COLD_START)
 
@@ -44,8 +46,9 @@ class MainActivity : ComponentActivity() {
                 onSelectTab = { tabId -> selectTab(tabId) },
                 onCloseTab = { tabId -> closeTab(tabId) },
                 isAuthenticated = isAuthenticated.value,
+                canAutoStartSignIn = !hasRefreshToken.value,
                 authHandoffProvider = authBroker,
-                onSignIn = { beginBrowserLogin() },
+                onSignIn = { reason -> beginBrowserLogin(reason) },
             )
         }
     }
@@ -87,18 +90,24 @@ class MainActivity : ComponentActivity() {
         createTab(rawUrl, source)
     }
 
-    private fun beginBrowserLogin() {
-        authBroker.beginBrowserLogin(this, logger)
+    private fun beginBrowserLogin(reason: String = AuthBrowserLoginReasons.User) {
+        isAuthenticated.value = false
+        authBroker.beginBrowserLogin(this, logger, reason)
     }
 
     private fun handleAuthRedirect(uri: Uri) {
         val accepted = authBroker.handleAuthRedirect(uri, logger)
-        isAuthenticated.value = authBroker.hasRefreshToken()
+        refreshAuthState()
         if (!accepted) {
             restoreTabs()
             return
         }
         reloadSelectedTabAfterAuth()
+    }
+
+    private fun refreshAuthState() {
+        hasRefreshToken.value = authBroker.hasRefreshToken()
+        isAuthenticated.value = authBroker.shouldAttemptEmbeddedSession()
     }
 
     private fun reloadSelectedTabAfterAuth() {

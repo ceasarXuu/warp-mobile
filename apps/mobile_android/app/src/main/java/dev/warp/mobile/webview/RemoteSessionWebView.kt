@@ -19,6 +19,7 @@ import android.webkit.WebViewClient
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import dev.warp.mobile.auth.AuthHandoffProvider
+import dev.warp.mobile.auth.AuthBrowserLoginReasons
 import dev.warp.mobile.keyboard.TerminalAction
 import dev.warp.mobile.observability.MobileEventLogger
 import dev.warp.mobile.session.SessionLaunchRequest
@@ -63,7 +64,7 @@ object RemoteSessionWebView {
         request: SessionLaunchRequest,
         logger: MobileEventLogger,
         authHandoffProvider: AuthHandoffProvider,
-        onAuthRequired: () -> Unit,
+        onAuthRequired: (String) -> Unit,
     ): WebView {
         return WebView(context).apply {
             tag = request.loadUrl
@@ -163,7 +164,7 @@ object RemoteSessionWebView {
         }
     }
 
-    private fun loggingChromeClient(logger: MobileEventLogger, onAuthRequired: () -> Unit): WebChromeClient {
+    private fun loggingChromeClient(logger: MobileEventLogger, onAuthRequired: (String) -> Unit): WebChromeClient {
         return object : WebChromeClient() {
             override fun onCreateWindow(
                 view: WebView,
@@ -211,7 +212,7 @@ object RemoteSessionWebView {
     private fun popupRedirectClient(
         targetView: WebView,
         logger: MobileEventLogger,
-        onAuthRequired: () -> Unit,
+        onAuthRequired: (String) -> Unit,
     ): WebViewClient {
         return object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
@@ -231,7 +232,7 @@ object RemoteSessionWebView {
         targetView: WebView,
         uri: Uri,
         logger: MobileEventLogger,
-        onAuthRequired: () -> Unit,
+        onAuthRequired: (String) -> Unit,
     ): Boolean {
         val url = uri.toString()
         val host = uri.host.orEmpty()
@@ -240,7 +241,7 @@ object RemoteSessionWebView {
         }
         if (isAuthNavigation(uri)) {
             logger.event("mobile_webview_auth_popup_externalized", mapOf("host" to host))
-            onAuthRequired()
+            onAuthRequired(AuthBrowserLoginReasons.WebViewAuthPopup)
             return true
         }
         if (!isAllowedHost(host)) {
@@ -256,7 +257,7 @@ object RemoteSessionWebView {
         logger: MobileEventLogger,
         authHandoffScript: String,
         injectAuthOnPageStart: Boolean,
-        onAuthRequired: () -> Unit,
+        onAuthRequired: (String) -> Unit,
     ): WebViewClient {
         return object : WebViewClient() {
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
@@ -273,7 +274,7 @@ object RemoteSessionWebView {
                 val host = request.url.host.orEmpty()
                 if (request.isForMainFrame && isAuthNavigation(request.url)) {
                     logger.event("mobile_webview_auth_navigation_externalized", mapOf("host" to host))
-                    onAuthRequired()
+                    onAuthRequired(AuthBrowserLoginReasons.WebViewAuthNavigation)
                     return true
                 }
                 val allowed = isAllowedHost(host)

@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
+import dev.warp.mobile.auth.AuthBrowserLoginReasons
 import dev.warp.mobile.design.WarpButton
 import dev.warp.mobile.design.WarpButtonVariant
 import dev.warp.mobile.design.WarpMobileTokens
@@ -58,8 +59,9 @@ fun RemoteControlScreen(
     onSelectTab: (String) -> Unit,
     onCloseTab: (String) -> Unit,
     isAuthenticated: Boolean,
+    canAutoStartSignIn: Boolean,
     authHandoffProvider: AuthHandoffProvider,
-    onSignIn: () -> Unit,
+    onSignIn: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val tokens = remember { WarpMobileTokens.load(context) }
@@ -74,6 +76,7 @@ fun RemoteControlScreen(
             state = state,
             logger = logger,
             isAuthenticated = isAuthenticated,
+            canAutoStartSignIn = canAutoStartSignIn,
             authHandoffProvider = authHandoffProvider,
             onCreateTab = { showCreateDialog = true },
             onSelectTab = onSelectTab,
@@ -160,11 +163,12 @@ private fun ReadyState(
     state: RemoteScreenState.Ready,
     logger: MobileEventLogger,
     isAuthenticated: Boolean,
+    canAutoStartSignIn: Boolean,
     authHandoffProvider: AuthHandoffProvider,
     onCreateTab: () -> Unit,
     onSelectTab: (String) -> Unit,
     onCloseTab: (String) -> Unit,
-    onSignIn: () -> Unit,
+    onSignIn: (String) -> Unit,
 ) {
     var webView by remember { mutableStateOf<WebView?>(null) }
     var browserBottom by remember { mutableIntStateOf(-1) }
@@ -172,12 +176,16 @@ private fun ReadyState(
     val selectedTab = state.tabs.firstOrNull { it.id == state.selectedTabId } ?: return
     var autoLoginStartedForTab by remember(selectedTab.id) { mutableStateOf(false) }
 
-    LaunchedEffect(isAuthenticated, selectedTab.id) {
-        if (!isAuthenticated && !autoLoginStartedForTab) {
+    LaunchedEffect(isAuthenticated, canAutoStartSignIn, selectedTab.id) {
+        if (!isAuthenticated && canAutoStartSignIn && !autoLoginStartedForTab) {
             autoLoginStartedForTab = true
             logger.event("mobile_auth_browser_login_auto_started", mapOf("session_id_hash" to selectedTab.request.sessionIdHash))
-            onSignIn()
+            onSignIn(AuthBrowserLoginReasons.AutoNoToken)
         }
+    }
+
+    LaunchedEffect(isAuthenticated) {
+        if (!isAuthenticated) webView = null
     }
 
     LaunchedEffect(browserBottom, keyboardTop, selectedTab.request.sessionIdHash) {
@@ -219,7 +227,7 @@ private fun ReadyState(
             onCreateTab = onCreateTab,
         )
         if (!isAuthenticated) {
-            AuthPromptBar(tokens = tokens, onSignIn = onSignIn)
+            AuthPromptBar(tokens = tokens) { onSignIn(AuthBrowserLoginReasons.User) }
         }
         BrowserPane(
             modifier = Modifier
@@ -232,42 +240,48 @@ private fun ReadyState(
                     }
                 },
         ) {
-            key(selectedTab.id, state.webNavigationId) {
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-                    factory = { context ->
-                        RemoteSessionWebView.create(
-                            context = context,
-                            request = selectedTab.request,
-                            logger = logger,
-                            authHandoffProvider = authHandoffProvider,
-                            onAuthRequired = onSignIn,
-                        ).also {
+            if (isAuthenticated) {
+                key(selectedTab.id, state.webNavigationId) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { context ->
+                            RemoteSessionWebView.create(
+                                context = context,
+                                request = selectedTab.request,
+                                logger = logger,
+                                authHandoffProvider = authHandoffProvider,
+                                onAuthRequired = onSignIn,
+                            ).also {
+                                webView = it
+                            }
+                        },
+                        update = {
                             webView = it
-                        }
-                    },
-                    update = {
-                        webView = it
-                        RemoteSessionWebView.update(it, selectedTab.request, logger)
-                    },
-                )
+                            RemoteSessionWebView.update(it, selectedTab.request, logger)
+                        },
+                    )
+                }
+            } else {
+                NativeAuthGate(tokens)
             }
         }
-        TerminalKeyboardBar(
-            tokens = tokens,
-            enabled = true,
-            sessionIdHash = selectedTab.request.sessionIdHash,
-            logger = logger,
-            modifier = Modifier.onGloballyPositioned { coordinates ->
-                val next = coordinates.boundsInRoot().top.toInt()
-                if (keyboardTop != next) {
-                    keyboardTop = next
-                }
-            },
-            onSystemKeyboardOpened = { reason ->
-                RemoteSessionWebView.scrollFocusedInputIntoView(webView, logger, reason)
-            },
-        ) { action -> RemoteSessionWebView.dispatchTerminalAction(webView, action, logger) }
+        if (isAuthenticated) {
+            TerminalKeyboardBar(
+                tokens = tokens,
+                enabled = true,
+                sessionIdHash = selectedTab.request.sessionIdHash,
+                logger = logger,
+                modifier = Modifier.onGloballyPositioned { coordinates ->
+                    val next = coordinates.boundsInRoot().top.toInt()
+                    if (keyboardTop != next) {
+                        keyboardTop = next
+                    }
+                },
+                onSystemKeyboardOpened = { reason ->
+                    RemoteSessionWebView.scrollFocusedInputIntoView(webView, logger, reason)
+                },
+            ) { action -> RemoteSessionWebView.dispatchTerminalAction(webView, action, logger) }
+        }
     }
 }
 
@@ -291,6 +305,23 @@ private fun AuthPromptBar(
             modifier = Modifier.weight(1f),
         )
         WarpButton("Sign in", tokens, WarpButtonVariant.Primary, onClick = onSignIn)
+    }
+}
+
+@Composable
+private fun NativeAuthGate(tokens: WarpMobileTokens) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(tokens.background)
+            .padding(16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "Finish sign-in in your browser.",
+            color = tokens.nonactiveText,
+            fontSize = 14.sp,
+        )
     }
 }
 

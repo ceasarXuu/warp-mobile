@@ -15,6 +15,15 @@ class WarpAuthRedirectParserTest {
     }
 
     @Test
+    fun buildsFreshRemoteLoginUrlWhenRecentSignInIsRequired() {
+        val loginUrl = WarpAuthRedirectParser.buildLoginUrl("state value", forceFreshCredential = true)
+
+        assertTrue(loginUrl.startsWith("https://app.warp.dev/login_options/remote?"))
+        assertTrue(loginUrl.contains("scheme=warposs"))
+        assertTrue(loginUrl.contains("state=state+value"))
+    }
+
+    @Test
     fun parsesValidDesktopRedirect() {
         val redirect = WarpAuthRedirectParser.parse(
             "warposs://auth/desktop_redirect?refresh_token=token-value&state=pending&user_uid=user-1",
