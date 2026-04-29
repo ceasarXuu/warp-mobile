@@ -17,6 +17,10 @@ class WarpLoginBroker(context: Context) : AuthHandoffProvider {
 
     override fun refreshTokenForHandoff(): String? = tokenStore.refreshTokenForHandoff()
 
+    override fun saveRefreshTokenFromHandoff(token: String) {
+        tokenStore.saveRefreshTokenFromHandoff(token)
+    }
+
     fun hasRefreshToken(): Boolean = tokenStore.hasRefreshToken()
 
     fun beginBrowserLogin(activity: Activity, logger: MobileEventLogger) {

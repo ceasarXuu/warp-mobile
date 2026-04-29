@@ -21,6 +21,10 @@ class AuthTokenStore(context: Context) : AuthHandoffProvider {
 
     override fun refreshTokenForHandoff(): String? = refreshToken()
 
+    override fun saveRefreshTokenFromHandoff(token: String) {
+        saveRefreshToken(token)
+    }
+
     fun hasRefreshToken(): Boolean = refreshToken() != null
 
     fun refreshToken(): String? {

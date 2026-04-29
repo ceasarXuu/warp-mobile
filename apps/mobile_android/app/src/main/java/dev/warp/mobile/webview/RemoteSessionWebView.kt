@@ -10,6 +10,7 @@ import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -83,8 +84,11 @@ object RemoteSessionWebView {
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             addJavascriptInterface(WarpHostBridge(logger), "WarpAndroidHost")
-            addJavascriptInterface(WarpAuthHandoffBridge(authHandoffProvider), "WarpAndroidAuthHandoff")
-            val authHandoffScript = authHandoffScript()
+            addJavascriptInterface(
+                WarpAuthHandoffBridge(authHandoffProvider, logger, onAuthRequired),
+                "WarpAndroidAuthHandoff",
+            )
+            val authHandoffScript = WebViewAuthScripts.authHandoffScript()
             val injectAuthOnPageStart = installAuthHandoffScript(authHandoffScript, logger)
             webChromeClient = loggingChromeClient(logger, onAuthRequired)
             webViewClient = guardedWebViewClient(
@@ -195,6 +199,8 @@ object RemoteSessionWebView {
                     mapOf(
                         "level" to consoleMessage.messageLevel().name,
                         "line" to consoleMessage.lineNumber().toString(),
+                        "message" to sanitizeLogText(consoleMessage.message()),
+                        "source" to sanitizeLogText(consoleMessage.sourceId()),
                     ),
                 )
                 return true
@@ -254,7 +260,9 @@ object RemoteSessionWebView {
     ): WebViewClient {
         return object : WebViewClient() {
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
-                val host = Uri.parse(url).host.orEmpty()
+                val uri = Uri.parse(url)
+                val host = uri.host.orEmpty()
+                logger.event("mobile_webview_page_started", mapOf("host" to host, "path" to uri.path.orEmpty().take(96)))
                 if (injectAuthOnPageStart && isAllowedHost(host)) {
                     view.evaluateJavascript(authHandoffScript, null)
                     logger.event("mobile_auth_handoff_script_injected", mapOf("mode" to "page_started"))
@@ -281,6 +289,19 @@ object RemoteSessionWebView {
                 return !allowed
             }
 
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                logger.warn(
+                    "mobile_webview_resource_error",
+                    mapOf(
+                        "host" to request.url.host.orEmpty(),
+                        "is_main_frame" to request.isForMainFrame.toString(),
+                        "path" to request.url.path.orEmpty().take(96),
+                        "code" to error.errorCode.toString(),
+                        "description" to sanitizeLogText(error.description.toString()),
+                    ),
+                )
+            }
+
             override fun onReceivedHttpError(
                 view: WebView,
                 request: WebResourceRequest,
@@ -298,6 +319,8 @@ object RemoteSessionWebView {
             }
 
             override fun onPageFinished(view: WebView, url: String) {
+                val uri = Uri.parse(url)
+                logger.event("mobile_webview_page_finished", mapOf("host" to uri.host.orEmpty(), "path" to uri.path.orEmpty().take(96)))
                 flushPersistentState(logger, "page_finished")
             }
 
@@ -340,24 +363,6 @@ object RemoteSessionWebView {
         }
     }
 
-    private fun authHandoffScript(): String {
-        return """
-            (function() {
-              Object.defineProperty(window, 'warpUserHandoff', {
-                configurable: true,
-                value: function() {
-                  try {
-                    if (!window.WarpAndroidAuthHandoff) return null;
-                    return window.WarpAndroidAuthHandoff.refreshToken();
-                  } catch (_) {
-                    return null;
-                  }
-                }
-              });
-            })();
-        """.trimIndent()
-    }
-
     private fun focusScrollScript(): String {
         return """
             (function() {
@@ -395,6 +400,13 @@ object RemoteSessionWebView {
         return defaultUserAgent
             .replace("; wv", "")
             .replace(" Version/4.0", "")
+    }
+
+    private fun sanitizeLogText(value: String): String {
+        return value
+            .replace(Regex("refresh_token=[^&\\s]+"), "refresh_token=REDACTED")
+            .replace(Regex("state=[^&\\s]+"), "state=REDACTED")
+            .take(512)
     }
 
     private fun fakeRemoteControlPage(): String {
@@ -436,16 +448,4 @@ object RemoteSessionWebView {
             </html>
         """.trimIndent()
     }
-}
-
-class WarpHostBridge(private val logger: MobileEventLogger) {
-    @JavascriptInterface
-    fun emitWarpEvent(json: String) {
-        logger.event("mobile_bridge_message_received", mapOf("payload_size" to json.length.toString()))
-    }
-}
-
-class WarpAuthHandoffBridge(private val provider: AuthHandoffProvider) {
-    @JavascriptInterface
-    fun refreshToken(): String? = provider.refreshTokenForHandoff()
 }

@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.key
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
@@ -227,24 +228,26 @@ private fun ReadyState(
                     }
                 },
         ) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { context ->
-                    RemoteSessionWebView.create(
-                        context = context,
-                        request = selectedTab.request,
-                        logger = logger,
-                        authHandoffProvider = authHandoffProvider,
-                        onAuthRequired = onSignIn,
-                    ).also {
+            key(selectedTab.id, state.webNavigationId) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { context ->
+                        RemoteSessionWebView.create(
+                            context = context,
+                            request = selectedTab.request,
+                            logger = logger,
+                            authHandoffProvider = authHandoffProvider,
+                            onAuthRequired = onSignIn,
+                        ).also {
+                            webView = it
+                        }
+                    },
+                    update = {
                         webView = it
-                    }
-                },
-                update = {
-                    webView = it
-                    RemoteSessionWebView.update(it, selectedTab.request, logger)
-                },
-            )
+                        RemoteSessionWebView.update(it, selectedTab.request, logger)
+                    },
+                )
+            }
         }
         TerminalKeyboardBar(
             tokens = tokens,

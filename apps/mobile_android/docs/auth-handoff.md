@@ -11,7 +11,9 @@ Warp Mobile must not render Warp account login, OAuth provider login, or CAPTCHA
 3. Warp's hosted login handles email login, Google login, GitHub login, and CAPTCHA entirely outside the app.
 4. The browser redirects to `warposs://auth/desktop_redirect?refresh_token=...&state=...`.
 5. Android validates the state, saves the refresh token with Android Keystore encryption, and reloads the selected tab.
-6. The WebView installs `window.warpUserHandoff()` at document start for `app.warp.dev`; Warp Web imports the refresh token through its existing handoff path.
+6. The WebView installs a document-start bootstrap for `app.warp.dev`.
+7. The bootstrap exchanges the stored Firebase refresh token for an ID token through Firebase Secure Token, posts that ID token to `/api/v1/oauth/session`, and reloads the current page after the session cookie is established.
+8. The same bootstrap also exposes `window.warpUserHandoff()` so Warp's inner WASM client can receive the refresh token after the React host is logged in.
 
 ## Guardrails
 
@@ -20,6 +22,9 @@ Warp Mobile must not render Warp account login, OAuth provider login, or CAPTCHA
 - WebView provider-login navigation is blocked and externalized. Google, GitHub, and related OAuth hosts should not become top-level pages inside the WebView.
 - The WebView keeps cookies, DOM storage, and WebView persistent state enabled so app session data survives process restart.
 - The injected JavaScript does not embed the token literal. It calls the Android bridge so token updates after browser login are visible without rebuilding the WebView.
+- `window.warpUserHandoff` is installed as an accessor. Warp Web's own bundle also assigns this symbol, so the Android accessor must accept that assignment and keep it as a fallback instead of making the property read-only.
+- The Firebase API key used by the bootstrap is the public web key from the hosted Warp bundle; it is not a secret. Do not log refresh tokens or ID tokens.
+- If `/api/v1/oauth/session` rejects the exchanged ID token with `Recent sign in required`, the WebView asks Android to start browser login again. This keeps reauthentication in the browser instead of exposing the login form inside the app.
 
 ## Test Notes
 
