@@ -33,8 +33,9 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:host="app.warp.dev"
-                    android:scheme="https" />
+                    android:host="auth"
+                    android:pathPrefix="/desktop_redirect"
+                    android:scheme="warposs" />
             </intent-filter>
         </activity>
     </application>

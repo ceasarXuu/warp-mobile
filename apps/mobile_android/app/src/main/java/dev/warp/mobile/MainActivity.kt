@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
+import dev.warp.mobile.auth.WarpLoginBroker
 import dev.warp.mobile.observability.MobileEventLogger
 import dev.warp.mobile.session.LaunchSource
 import dev.warp.mobile.session.SessionLinkParseException
@@ -21,11 +22,15 @@ import java.util.UUID
 class MainActivity : ComponentActivity() {
     private val logger = MobileEventLogger("WarpMobile")
     private val screenState = mutableStateOf<RemoteScreenState>(RemoteScreenState.Loading)
+    private val isAuthenticated = mutableStateOf(false)
     private lateinit var tabStore: RemoteTabStore
+    private lateinit var authBroker: WarpLoginBroker
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         tabStore = RemoteTabStore(this)
+        authBroker = WarpLoginBroker(this)
+        isAuthenticated.value = authBroker.hasRefreshToken()
         logger.event("mobile_shell_created")
         resolveLaunch(intent, LaunchSource.COLD_START)
 
@@ -36,6 +41,9 @@ class MainActivity : ComponentActivity() {
                 onRetry = { resolveLaunch(intent, LaunchSource.RETRY) },
                 onCreateTab = { rawUrl -> createTab(rawUrl, LaunchSource.USER_CREATED) },
                 onSelectTab = { tabId -> selectTab(tabId) },
+                isAuthenticated = isAuthenticated.value,
+                authHandoffProvider = authBroker,
+                onSignIn = { beginBrowserLogin() },
             )
         }
     }
@@ -59,6 +67,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun resolveLaunch(intent: Intent, source: LaunchSource) {
+        intent.data?.let { uri ->
+            if (authBroker.isAuthRedirect(uri)) {
+                handleAuthRedirect(uri)
+                return
+            }
+        }
         val rawUrl = intent.dataString
         if (rawUrl == null) {
             restoreTabs()
@@ -69,6 +83,38 @@ class MainActivity : ComponentActivity() {
             return
         }
         createTab(rawUrl, source)
+    }
+
+    private fun beginBrowserLogin() {
+        authBroker.beginBrowserLogin(this, logger)
+    }
+
+    private fun handleAuthRedirect(uri: Uri) {
+        val accepted = authBroker.handleAuthRedirect(uri, logger)
+        isAuthenticated.value = authBroker.hasRefreshToken()
+        if (!accepted) {
+            restoreTabs()
+            return
+        }
+        reloadSelectedTabAfterAuth()
+    }
+
+    private fun reloadSelectedTabAfterAuth() {
+        val current = screenState.value as? RemoteScreenState.Ready
+        val snapshot = current?.let { RemoteTabSnapshot(it.tabs, it.selectedTabId) } ?: tabStore.load(logger)
+        val selectedTabId = snapshot.selectedTabId
+        val selectedTab = snapshot.tabs.firstOrNull { it.id == selectedTabId }
+        if (snapshot.tabs.isEmpty() || selectedTabId == null || selectedTab == null) {
+            restoreTabs()
+            return
+        }
+        logger.event("mobile_auth_handoff_reload_requested", mapOf("session_id_hash" to selectedTab.request.sessionIdHash))
+        screenState.value = RemoteScreenState.Ready(
+            tabs = snapshot.tabs,
+            selectedTabId = selectedTabId,
+            pendingWebUrl = selectedTab.request.loadUrl,
+            webNavigationId = System.currentTimeMillis(),
+        )
     }
 
     private fun restoreTabs() {

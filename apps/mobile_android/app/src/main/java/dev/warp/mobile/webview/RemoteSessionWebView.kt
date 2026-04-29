@@ -2,6 +2,7 @@ package dev.warp.mobile.webview
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Message
 import android.webkit.ConsoleMessage
@@ -14,6 +15,9 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
+import dev.warp.mobile.auth.AuthHandoffProvider
 import dev.warp.mobile.keyboard.TerminalAction
 import dev.warp.mobile.observability.MobileEventLogger
 import dev.warp.mobile.session.SessionLaunchRequest
@@ -28,7 +32,7 @@ object RemoteSessionWebView {
         "127.0.0.1",
     )
     private val allowedWarpHostSuffixes = setOf(".app.warp.dev")
-    private val allowedAuthHosts = setOf(
+    private val providerAuthHosts = setOf(
         "accounts.google.com",
         "accounts.youtube.com",
         "apis.google.com",
@@ -36,7 +40,7 @@ object RemoteSessionWebView {
         "api.github.com",
         "oauth2.googleapis.com",
     )
-    private val allowedAuthHostSuffixes = setOf(
+    private val providerAuthHostSuffixes = setOf(
         ".github.com",
         ".githubassets.com",
         ".githubusercontent.com",
@@ -45,12 +49,20 @@ object RemoteSessionWebView {
         ".googleusercontent.com",
         ".googleapis.com",
     )
+    private val authHandoffOrigins = setOf(
+        "https://app.warp.dev",
+        "https://debug.warp.local",
+        "http://localhost",
+        "http://127.0.0.1",
+    )
 
     @SuppressLint("SetJavaScriptEnabled")
     fun create(
         context: Context,
         request: SessionLaunchRequest,
         logger: MobileEventLogger,
+        authHandoffProvider: AuthHandoffProvider,
+        onAuthRequired: () -> Unit,
     ): WebView {
         return WebView(context).apply {
             tag = request.loadUrl
@@ -71,8 +83,16 @@ object RemoteSessionWebView {
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             addJavascriptInterface(WarpHostBridge(logger), "WarpAndroidHost")
-            webChromeClient = loggingChromeClient(logger)
-            webViewClient = guardedWebViewClient(logger)
+            addJavascriptInterface(WarpAuthHandoffBridge(authHandoffProvider), "WarpAndroidAuthHandoff")
+            val authHandoffScript = authHandoffScript()
+            val injectAuthOnPageStart = installAuthHandoffScript(authHandoffScript, logger)
+            webChromeClient = loggingChromeClient(logger, onAuthRequired)
+            webViewClient = guardedWebViewClient(
+                logger = logger,
+                authHandoffScript = authHandoffScript,
+                injectAuthOnPageStart = injectAuthOnPageStart,
+                onAuthRequired = onAuthRequired,
+            )
             loadRequest(request, logger)
         }
     }
@@ -139,7 +159,7 @@ object RemoteSessionWebView {
         }
     }
 
-    private fun loggingChromeClient(logger: MobileEventLogger): WebChromeClient {
+    private fun loggingChromeClient(logger: MobileEventLogger, onAuthRequired: () -> Unit): WebChromeClient {
         return object : WebChromeClient() {
             override fun onCreateWindow(
                 view: WebView,
@@ -161,7 +181,7 @@ object RemoteSessionWebView {
                     settings.javaScriptCanOpenWindowsAutomatically = true
                     settings.setSupportMultipleWindows(false)
                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                    webViewClient = popupRedirectClient(view, logger)
+                    webViewClient = popupRedirectClient(view, logger, onAuthRequired)
                 }
                 val transport = resultMsg.obj as WebView.WebViewTransport
                 transport.webView = popupView
@@ -182,24 +202,40 @@ object RemoteSessionWebView {
         }
     }
 
-    private fun popupRedirectClient(targetView: WebView, logger: MobileEventLogger): WebViewClient {
+    private fun popupRedirectClient(
+        targetView: WebView,
+        logger: MobileEventLogger,
+        onAuthRequired: () -> Unit,
+    ): WebViewClient {
         return object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                return redirectPopup(targetView, request.url.toString(), request.url.host.orEmpty(), logger)
+                return redirectPopup(targetView, request.url, logger, onAuthRequired)
             }
 
             override fun onPageFinished(view: WebView, url: String) {
-                val host = android.net.Uri.parse(url).host.orEmpty()
-                if (redirectPopup(targetView, url, host, logger)) {
+                val uri = Uri.parse(url)
+                if (redirectPopup(targetView, uri, logger, onAuthRequired)) {
                     view.destroy()
                 }
             }
         }
     }
 
-    private fun redirectPopup(targetView: WebView, url: String, host: String, logger: MobileEventLogger): Boolean {
+    private fun redirectPopup(
+        targetView: WebView,
+        uri: Uri,
+        logger: MobileEventLogger,
+        onAuthRequired: () -> Unit,
+    ): Boolean {
+        val url = uri.toString()
+        val host = uri.host.orEmpty()
         if (host.isBlank() || url == "about:blank") {
             return false
+        }
+        if (isAuthNavigation(uri)) {
+            logger.event("mobile_webview_auth_popup_externalized", mapOf("host" to host))
+            onAuthRequired()
+            return true
         }
         if (!isAllowedHost(host)) {
             logger.warn("mobile_webview_popup_url_blocked", mapOf("host" to host))
@@ -210,10 +246,28 @@ object RemoteSessionWebView {
         return true
     }
 
-    private fun guardedWebViewClient(logger: MobileEventLogger): WebViewClient {
+    private fun guardedWebViewClient(
+        logger: MobileEventLogger,
+        authHandoffScript: String,
+        injectAuthOnPageStart: Boolean,
+        onAuthRequired: () -> Unit,
+    ): WebViewClient {
         return object : WebViewClient() {
+            override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+                val host = Uri.parse(url).host.orEmpty()
+                if (injectAuthOnPageStart && isAllowedHost(host)) {
+                    view.evaluateJavascript(authHandoffScript, null)
+                    logger.event("mobile_auth_handoff_script_injected", mapOf("mode" to "page_started"))
+                }
+            }
+
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val host = request.url.host.orEmpty()
+                if (request.isForMainFrame && isAuthNavigation(request.url)) {
+                    logger.event("mobile_webview_auth_navigation_externalized", mapOf("host" to host))
+                    onAuthRequired()
+                    return true
+                }
                 val allowed = isAllowedHost(host)
                 if (!allowed) {
                     logger.warn(
@@ -256,9 +310,52 @@ object RemoteSessionWebView {
 
     private fun isAllowedHost(host: String): Boolean {
         return host in allowedSessionHosts ||
-            allowedWarpHostSuffixes.any { suffix -> host.endsWith(suffix) } ||
-            host in allowedAuthHosts ||
-            allowedAuthHostSuffixes.any { suffix -> host.endsWith(suffix) }
+            allowedWarpHostSuffixes.any { suffix -> host.endsWith(suffix) }
+    }
+
+    private fun isAuthNavigation(uri: Uri): Boolean {
+        val host = uri.host.orEmpty()
+        val path = uri.path.orEmpty()
+        return isProviderAuthHost(host) ||
+            (host == "app.warp.dev" && (path.startsWith("/login") || path.startsWith("/signup")))
+    }
+
+    private fun isProviderAuthHost(host: String): Boolean {
+        return host in providerAuthHosts ||
+            providerAuthHostSuffixes.any { suffix -> host.endsWith(suffix) }
+    }
+
+    private fun WebView.installAuthHandoffScript(script: String, logger: MobileEventLogger): Boolean {
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            logger.warn("mobile_auth_handoff_document_start_unavailable")
+            return true
+        }
+        return try {
+            WebViewCompat.addDocumentStartJavaScript(this, script, authHandoffOrigins)
+            logger.event("mobile_auth_handoff_script_installed", mapOf("mode" to "document_start"))
+            false
+        } catch (_: RuntimeException) {
+            logger.warn("mobile_auth_handoff_script_install_failed")
+            true
+        }
+    }
+
+    private fun authHandoffScript(): String {
+        return """
+            (function() {
+              Object.defineProperty(window, 'warpUserHandoff', {
+                configurable: true,
+                value: function() {
+                  try {
+                    if (!window.WarpAndroidAuthHandoff) return null;
+                    return window.WarpAndroidAuthHandoff.refreshToken();
+                  } catch (_) {
+                    return null;
+                  }
+                }
+              });
+            })();
+        """.trimIndent()
     }
 
     private fun focusScrollScript(): String {
@@ -346,4 +443,9 @@ class WarpHostBridge(private val logger: MobileEventLogger) {
     fun emitWarpEvent(json: String) {
         logger.event("mobile_bridge_message_received", mapOf("payload_size" to json.length.toString()))
     }
+}
+
+class WarpAuthHandoffBridge(private val provider: AuthHandoffProvider) {
+    @JavascriptInterface
+    fun refreshToken(): String? = provider.refreshTokenForHandoff()
 }

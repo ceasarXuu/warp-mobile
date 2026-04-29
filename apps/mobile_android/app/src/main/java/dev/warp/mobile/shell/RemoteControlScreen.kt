@@ -41,6 +41,7 @@ import androidx.compose.ui.window.Dialog
 import dev.warp.mobile.design.WarpButton
 import dev.warp.mobile.design.WarpButtonVariant
 import dev.warp.mobile.design.WarpMobileTokens
+import dev.warp.mobile.auth.AuthHandoffProvider
 import dev.warp.mobile.keyboard.TerminalKeyboardBar
 import dev.warp.mobile.observability.MobileEventLogger
 import dev.warp.mobile.tabs.RemoteTab
@@ -54,6 +55,9 @@ fun RemoteControlScreen(
     onRetry: () -> Unit,
     onCreateTab: (String) -> String?,
     onSelectTab: (String) -> Unit,
+    isAuthenticated: Boolean,
+    authHandoffProvider: AuthHandoffProvider,
+    onSignIn: () -> Unit,
 ) {
     val context = LocalContext.current
     val tokens = remember { WarpMobileTokens.load(context) }
@@ -67,8 +71,11 @@ fun RemoteControlScreen(
             tokens = tokens,
             state = state,
             logger = logger,
+            isAuthenticated = isAuthenticated,
+            authHandoffProvider = authHandoffProvider,
             onCreateTab = { showCreateDialog = true },
             onSelectTab = onSelectTab,
+            onSignIn = onSignIn,
         )
     }
 
@@ -149,13 +156,25 @@ private fun ReadyState(
     tokens: WarpMobileTokens,
     state: RemoteScreenState.Ready,
     logger: MobileEventLogger,
+    isAuthenticated: Boolean,
+    authHandoffProvider: AuthHandoffProvider,
     onCreateTab: () -> Unit,
     onSelectTab: (String) -> Unit,
+    onSignIn: () -> Unit,
 ) {
     var webView by remember { mutableStateOf<WebView?>(null) }
     var browserBottom by remember { mutableIntStateOf(-1) }
     var keyboardTop by remember { mutableIntStateOf(-1) }
     val selectedTab = state.tabs.firstOrNull { it.id == state.selectedTabId } ?: return
+    var autoLoginStartedForTab by remember(selectedTab.id) { mutableStateOf(false) }
+
+    LaunchedEffect(isAuthenticated, selectedTab.id) {
+        if (!isAuthenticated && !autoLoginStartedForTab) {
+            autoLoginStartedForTab = true
+            logger.event("mobile_auth_browser_login_auto_started", mapOf("session_id_hash" to selectedTab.request.sessionIdHash))
+            onSignIn()
+        }
+    }
 
     LaunchedEffect(browserBottom, keyboardTop, selectedTab.request.sessionIdHash) {
         if (browserBottom < 0 || keyboardTop < 0) return@LaunchedEffect
@@ -194,6 +213,9 @@ private fun ReadyState(
             onSelectTab = onSelectTab,
             onCreateTab = onCreateTab,
         )
+        if (!isAuthenticated) {
+            AuthPromptBar(tokens = tokens, onSignIn = onSignIn)
+        }
         BrowserPane(
             modifier = Modifier
                 .fillMaxWidth()
@@ -208,7 +230,13 @@ private fun ReadyState(
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { context ->
-                    RemoteSessionWebView.create(context, selectedTab.request, logger).also {
+                    RemoteSessionWebView.create(
+                        context = context,
+                        request = selectedTab.request,
+                        logger = logger,
+                        authHandoffProvider = authHandoffProvider,
+                        onAuthRequired = onSignIn,
+                    ).also {
                         webView = it
                     }
                 },
@@ -233,6 +261,29 @@ private fun ReadyState(
                 RemoteSessionWebView.scrollFocusedInputIntoView(webView, logger, reason)
             },
         ) { action -> RemoteSessionWebView.dispatchTerminalAction(webView, action, logger) }
+    }
+}
+
+@Composable
+private fun AuthPromptBar(
+    tokens: WarpMobileTokens,
+    onSignIn: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(tokens.surface1)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Sign in with your browser to continue.",
+            color = tokens.nonactiveText,
+            fontSize = 13.sp,
+            modifier = Modifier.weight(1f),
+        )
+        WarpButton("Sign in", tokens, WarpButtonVariant.Primary, onClick = onSignIn)
     }
 }
 
